@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from typing import Union
 
-
-app = FastAPI(title="Kira", version="0.0.1") 
 # start the FastAPI application with 
 # fastapi dev main.py
+app = FastAPI(title="Kira", version="0.0.1") 
+
 
 
 #####################
