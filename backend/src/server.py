@@ -1,10 +1,12 @@
 import uvicorn
+from config import settings
+import os 
 
-from backend.config import settings
+print(os.getcwd())
 
 if __name__ == "__main__":  # pragma: no cover
     uvicorn.run(
-        "gymhero.main:app",
+        "main:app",
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
         reload=settings.ENV in ["test", "dev"],
