@@ -3,14 +3,14 @@ import os
 from pydantic import EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from log import get_logger
+from app.log import get_logger
 
 log = get_logger(__name__)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="./backend/env.dev", env_file_encoding="utf-8", case_sensitive=True
+        env_file="./env.dev", env_file_encoding="utf-8", case_sensitive=True
     )
 
     API_VERSION: str
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
 class LocalDevSettings(Settings):
     model_config = SettingsConfigDict(
-        env_file="./backend/.env.local", env_file_encoding="utf-8", case_sensitive=True
+        env_file="./.env.local", env_file_encoding="utf-8", case_sensitive=True
     )
     ENV: str = "local"
 
