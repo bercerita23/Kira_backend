@@ -1,12 +1,14 @@
 import uvicorn
+from app.config import settings
 
-from backend.config import settings
 
 if __name__ == "__main__":  # pragma: no cover
     uvicorn.run(
-        "gymhero.main:app",
+        "app.main:app",
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
         reload=settings.ENV in ["test", "dev"],
         log_level="debug" if settings.ENV in ["test", "dev"] else None,
     )
+
+# python -m app.server to start the server
