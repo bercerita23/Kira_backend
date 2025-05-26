@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from database import Base
+from app.database.base_class import Base
+from app.model.quiz_model import Quiz
 
 class UserHistory(Base):
     __tablename__ = "user_history"

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from database import Base
+from app.database.base_class import Base
+
 
 class Reward(Base):
     __tablename__ = "reward"

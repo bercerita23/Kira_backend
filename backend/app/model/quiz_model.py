@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import relationship
-from database import Base
+from app.database.base_class import Base
+from app.model.question_model import Question
+
 
 class Quiz(Base):
     __tablename__ = "quiz"
