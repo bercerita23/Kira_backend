@@ -60,7 +60,11 @@ class LocalDevSettings(Settings):
         env_file="./.env.local", env_file_encoding="utf-8", case_sensitive=True
     )
     ENV: str = "local"
-
+class ProductionSettings(Settings):
+    model_config = SettingsConfigDict(
+        env_file="./.env.prod", env_file_encoding="utf-8", case_sensitive=True
+    )
+    ENV: str = "prod"
 
 def get_settings(env: str = "dev") -> Settings:
     """
@@ -81,6 +85,8 @@ def get_settings(env: str = "dev") -> Settings:
     #     return ContainerDevSettings()
     # if env.lower() in ["test", "t", "testing"]:
     #     return ContainerTestSettings()
+    if env.lower() in ["prod", "p", "production"]: 
+        return ProductionSettings()
     if env.lower() in ["local", "l"]:
         return LocalDevSettings()
 
