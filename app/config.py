@@ -10,7 +10,7 @@ log = get_logger(__name__)
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="./env.dev", env_file_encoding="utf-8", case_sensitive=True
+        env_file="./env.local", env_file_encoding="utf-8", case_sensitive=True
     )
 
     API_VERSION: str
