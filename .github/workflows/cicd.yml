@@ -1,0 +1,41 @@
+# DOC: https://docs.github.com/en/actions/writing-workflows
+
+name: CI/CD w/ AWS
+
+on: 
+  push:
+    branches:
+      - prod
+  pull_request:
+    branches:
+      - prod
+
+jobs:
+    build-docker-image-to-aws-ecr: 
+        name: Build Docker Image to AWS ECR
+        runs-on: ubuntu-latest
+        environment:
+            name: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
+        steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        
+        - name: Configure AWS Credentials 
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
+
+        - name: Set vars
+          id: set-vars
+          run: |
+            echo "short_sha=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_OUTPUT
+            echo "build_time=$(date +'%Y%m%d-%s')" >> $GITHUB_OUTPUT
+
+        - name: Set up Doker Buildx 
+          uses: docker/setup-buildx-action@v3
+
+        - name: Login to Amazon ECR 
+          uses: docker/login-action@v3
+
