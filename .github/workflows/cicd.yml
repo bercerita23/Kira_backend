@@ -17,7 +17,7 @@ jobs:
         environment:
             name: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
         steps:
-            
+
         - name: Checkout
           uses: actions/checkout@v4
         
@@ -62,7 +62,7 @@ jobs:
             EB_ENV: ${{ vars.EB_ENV }}
           run: |
             sed -i -e "s/\${IMAGE_TAG:-latest}/$IMAGE_TAG/g" docker-compose.yml
-            zip -r $APP_VERSION .ebextensions docker-compose.yml nginx.conf
+            zip -r $APP_VERSION .ebextensions docker-compose.yml 
             aws s3 cp $APP_VERSION s3://$EB_BUCKET/$EB_APP/$APP_VERSION
             aws elasticbeanstalk create-application-version --application-name $EB_APP --version-label $APP_VERSION --source-bundle S3Bucket=$EB_BUCKET,S3Key=$EB_APP/$APP_VERSION
             aws elasticbeanstalk update-environment --application-name $EB_APP --environment-name $EB_ENV --version-label $APP_VERSION
