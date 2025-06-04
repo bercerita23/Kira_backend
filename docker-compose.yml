@@ -1,6 +1,6 @@
 services:
   web:
-    image: 947119549699.dkr.ecr.us-east-2.amazonaws.com/kira/backend-docker-img-repo:latest
+    image: 947119549699.dkr.ecr.us-east-2.amazonaws.com/kira/backend-docker-img-repo:${IMAGE_TAG:-latest}
     platform: linux/amd64
     restart: always
     ports:
