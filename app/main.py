@@ -17,4 +17,4 @@ app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 #####################
 @app.get("/")
 def read_root():
-    return {"Hello From: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': settings.API_VERSION}
+    return {"Hello From: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': '01'}
