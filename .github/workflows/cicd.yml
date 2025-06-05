@@ -17,11 +17,26 @@ jobs:
         environment:
             name: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
         steps:
-        - name: Check AWS CLI
-          run: aws --version
-
         - name: Checkout
           uses: actions/checkout@v4
+
+          # Test
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.12.x'
+
+
+        - name: Install dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install pytest
+
+        - name: Run tests
+          run: |
+            pytest tests
+          # or use:
+          # python -m unittest discover tests
         
         - name: Configure AWS Credentials 
           uses: aws-actions/configure-aws-credentials@v4
