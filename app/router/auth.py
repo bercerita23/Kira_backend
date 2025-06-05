@@ -13,10 +13,9 @@ router = APIRouter()
 
 @router.get("/db")
 def test_db(db: Session = Depends(get_db)):
-    res = db.execute("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' LIMIT 1;").fetchall()
+    res = db.query(user_model.User).filter(user_model.User.email.isnot(None)).all()
     return {
-        "message": "Database connection successful",
-        "sample_table": res if res else "No tables found"
+        "Hello From: ": res
     }
 
 
