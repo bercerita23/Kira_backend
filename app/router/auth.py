@@ -11,6 +11,13 @@ from app.model import user_model
 
 router = APIRouter()
 
+@router.get("/db")
+def test_db(db: Session = Depends(get_db)):
+    res = db.execute("SELECT * FROM public.example WHERE id = 1").fetchone()
+    return {"message": "Database connection successful", 
+            "hello_message": res} 
+
+
 @router.post("/login", response_model=Token)
 def login_for_access_token(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
