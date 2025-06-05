@@ -5,6 +5,7 @@ services:
     restart: always
     ports:
       - "80:8000"
+      - "443:8000"
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
       - API_VERSION=${API_VERSION}
