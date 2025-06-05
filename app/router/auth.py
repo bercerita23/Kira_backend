@@ -11,6 +11,7 @@ from app.model import user_model
 
 router = APIRouter()
 
+# NEED TO BE COMMENTED OUT IN PRODUCTION
 @router.get("/db")
 def test_db(db: Session = Depends(get_db)):
     res = db.query(user_model.User).filter(user_model.User.email.isnot(None)).all()
