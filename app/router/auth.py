@@ -13,9 +13,11 @@ router = APIRouter()
 
 @router.get("/db")
 def test_db(db: Session = Depends(get_db)):
-    res = db.execute("SELECT DISTINCT * FROM public.testing WHERE testing LIKE 'Hello World'").fetchone()
-    return {"message": "Database connection successful", 
-            "hello_message": res} 
+    res = db.execute("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' LIMIT 1;").fetchall()
+    return {
+        "message": "Database connection successful",
+        "sample_table": res if res else "No tables found"
+    }
 
 
 @router.post("/login", response_model=Token)
