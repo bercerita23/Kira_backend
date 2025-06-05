@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/db")
 def test_db(db: Session = Depends(get_db)):
-    res = db.execute("SELECT * FROM public.example WHERE id = 1").fetchone()
+    res = db.execute("SELECT DISTINCT * FROM public.testing WHERE testing LIKE 'Hello World'").fetchone()
     return {"message": "Database connection successful", 
             "hello_message": res} 
 
