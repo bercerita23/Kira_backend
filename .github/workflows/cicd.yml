@@ -17,9 +17,26 @@ jobs:
         environment:
             name: ${{ github.ref == 'refs/heads/prod' && 'production' || 'staging' }}
         steps:
-
         - name: Checkout
           uses: actions/checkout@v4
+
+          # Test
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.12.x'
+
+
+        - name: Install dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install pytest
+
+        - name: Run tests
+          run: |
+            pytest tests
+          # or use:
+          # python -m unittest discover tests
         
         - name: Configure AWS Credentials 
           uses: aws-actions/configure-aws-credentials@v4
@@ -62,8 +79,9 @@ jobs:
             EB_ENV: ${{ vars.EB_ENV }}
           run: |
             sed -i -e "s/\${IMAGE_TAG:-latest}/$IMAGE_TAG/g" docker-compose.yml
-            zip -r $APP_VERSION .ebextensions docker-compose.yml 
+            zip -r $APP_VERSION docker-compose.yml
             aws s3 cp $APP_VERSION s3://$EB_BUCKET/$EB_APP/$APP_VERSION
             aws elasticbeanstalk create-application-version --application-name $EB_APP --version-label $APP_VERSION --source-bundle S3Bucket=$EB_BUCKET,S3Key=$EB_APP/$APP_VERSION
             aws elasticbeanstalk update-environment --application-name $EB_APP --environment-name $EB_ENV --version-label $APP_VERSION
             aws elasticbeanstalk wait environment-updated --application-name $EB_APP --environment-name $EB_ENV --version-label $APP_VERSION
+
