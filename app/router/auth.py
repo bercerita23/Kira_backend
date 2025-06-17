@@ -92,7 +92,20 @@ def register(user_register: UserRegister, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
         return {"message": "User created successfully"}
+    
 
+# @router.post("/reset-pw-request", status_code=status.HTTP_200_OK)
+# def reset_pw_request(user: UserResetPassword, db: Session = Depends(get_db)): 
+#     user = db.query(user_model.User).filter(user_model.User.email == user.email).first()
+#     print(user.__dict__)
+#     if user: 
+#         # TODO: Implement sending reset password email with AWS SES or similar service
+#         return {"message": "Reset password email sent successfully"}
+#     else: 
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="User not found, please check the eamil or register first.",
+#         )
 
 
     
