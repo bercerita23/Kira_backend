@@ -22,6 +22,9 @@ class UserRegister(BaseModel):
     first_name: str
     last_name: Optional[str] = None
 
+class EmailRequest(BaseModel):
+    email: str
+
 class ResetPasswordRequest(BaseModel):
     email: str
     code: str
