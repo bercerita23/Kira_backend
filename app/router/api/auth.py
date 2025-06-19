@@ -85,6 +85,29 @@ def register(user_register: UserRegister, db: Session = Depends(get_db)):
 
     return {"message": "Verification code sent to email"}
     
+@router.post("/verify-email", response_model=dict)
+def verify_email(code: str, user_register: UserRegister, db: Session = Depends(get_db)):
+    record = db.execute(
+        text("SELECT * FROM verification_code WHERE email = :email"),
+        {"email": user_register.email}
+    ).fetchone()
+
+    if not record or record.code != code or record.expires_at < datetime.now():
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    # Delete verification entry
+    db.execute(text("DELETE FROM verification_code WHERE email = :email"), {"email": user_register.email})
+
+    # Hash and save user
+    hashed_password = auth_util.get_password_hash(user_register.password)
+    user_register.password = hashed_password
+    new_user = User(**user_register.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"message": "User verified and created successfully"}
+
 
 @router.post("/reset-pw-req", response_model=dict , status_code=status.HTTP_200_OK)
 def reset_password_request(email: str, db: Session = Depends(get_db)):
