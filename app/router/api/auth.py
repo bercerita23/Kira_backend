@@ -85,7 +85,7 @@ def register(user_register: UserRegister, db: Session = Depends(get_db)):
 
     return {"message": "Verification code sent to email"}
     
-@router.post("/verify-email", response_model=dict)
+@router.post("/verified-register", response_model=dict)
 def verify_email(code: str, user_register: UserRegister, db: Session = Depends(get_db)):
     record = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email"),
@@ -109,9 +109,12 @@ def verify_email(code: str, user_register: UserRegister, db: Session = Depends(g
     return {"message": "User verified and created successfully"}
 
 
-@router.post("/reset-pw-req", response_model=dict , status_code=status.HTTP_200_OK)
+@router.post("/reset-pw-request", response_model=dict , status_code=status.HTTP_200_OK)
 def reset_password_request(email: str, db: Session = Depends(get_db)):
-    """_summary_ request a password reset for the user with the given email.
+    """_summary_ : 
+    1. if the email exists in the database, if yes proceed to step 2, if no raise an exception
+    2. generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
+    3. send the code to the email address provided in the request with SES
 
     Args:
         email (str): _description_ the email of the user requesting a password reset
@@ -129,9 +132,10 @@ def reset_password_request(email: str, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-def reset_password():
-    """_summary_ reset the password for the user with the given email.
-
+def reset_password(db: Session = Depends(get_db)):
+    """_summary_ : 
+    1. if the email and the verification code match, proceed to step 2, if not raise an exception
+    2. update the user password
     Raises:
         HTTPException: _description_
 
