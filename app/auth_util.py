@@ -11,7 +11,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_access_token(
-    subject: Union[str, Any], expires_delta: timedelta = None
+    subject: Union[str, Any], email: str, first_name: str, role: str, school_id: str, expires_delta: timedelta = None
 ) -> str:
     """
     Creates an access token.
@@ -29,7 +29,7 @@ def create_access_token(
         expire = datetime.now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    to_encode = {"exp": expire, "sub": str(subject)}
+    to_encode = {"exp": expire, "email": email, "first_name": first_name, "role": role, "school_id": school_id, "subject": str(subject)}
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
