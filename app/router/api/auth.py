@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app import auth_util
 from app.config import settings
 from app.database import get_db
-from app.schema.auth_schema import ResetPasswordRequest, Token, UserRegister
+from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserRegister
 from app.model.user_model import User
 from app.router.dependencies import *
 from app.router.aws_ses import send_verification_email
@@ -111,7 +111,7 @@ def verify_email(code: str, user_register: UserRegister, db: Session = Depends(g
 
 
 @router.post("/reset-pw-request", response_model=dict , status_code=status.HTTP_200_OK)
-def reset_password_request(email: str, db: Session = Depends(get_db)):
+def reset_password_request(request: EmailRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email exists in the database, if yes proceed to step 2, if no raise an exception
     2. generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
@@ -129,7 +129,7 @@ def reset_password_request(email: str, db: Session = Depends(get_db)):
         _type_: _description_ a message in JSON format indicating success with 200
     """
     # Logic for sending reset password email goes here
-
+    email = request.email
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not registered")
