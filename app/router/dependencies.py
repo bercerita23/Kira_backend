@@ -69,12 +69,13 @@ def get_current_user(
     Raises:
         HTTPException: If the user is not found in the database.
     """
-    user = db.query(User).filter(User.id == token.sub).first()
+    user = db.query(User).filter(User.id == token.sub).first() 
     if user is None:
         raise Exception(
             status_code=status.HTTP_404_NOT_FOUND, details="User not found"
         )
     return user
+
 
 
 def get_current_superuser(
