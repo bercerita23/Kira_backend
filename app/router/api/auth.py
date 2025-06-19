@@ -1,14 +1,19 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app import auth_util
 from app.config import settings
 from app.database import get_db
 from app.schema.auth_schema import Token, UserRegister
 from app.model.user_model import User
 from app.router.dependencies import *
+from app.router.aws_ses import send_verification_email
+from uuid import uuid4
+
+
 router = APIRouter()
 
 # NEED TO BE COMMENTED OUT IN PRODUCTION
@@ -61,40 +66,28 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
 def register(user_register: UserRegister, db: Session = Depends(get_db)):
-    """_summary_ register a new user in the system, and raise an exception if the email is already registered.
-
-    Args:
-        user_register (UserRegister): _description_ takes email, first_name, [Optional]last_name, password
-        db (Session, optional): _description_. Defaults to Depends(get_db).
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        _type_: _description_ a message in JSON format indicating success with 201
-    """
     user = db.query(User).filter(User.email == user_register.email).first()
-    
-    if user: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email has already been registered",
-        )
-    else: 
-        hashed_password = auth_util.get_password_hash(user_register.password)
-        user_register.password = hashed_password
+    if user:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-        new_user = User(**user_register.model_dump())
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        return {"message": "User created successfully"}
+    code = str(uuid4())[:8]
+    expires_at = datetime.now() + timedelta(minutes=10)
+
+    db.execute(
+        text("INSERT INTO verification_code (email, code, expires_at) VALUES (:email, :code, :expires_at) ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at"),
+        {"email": user_register.email, "code": code, "expires_at": expires_at}
+    )
+    db.commit()
+
+    send_verification_email(user_register.email, code)
+
+    return {"message": "Verification code sent to email"}
     
 
 @router.post("/reset-pw-req", response_model=dict , status_code=status.HTTP_200_OK)
-def reset_password_request(email: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def reset_password_request(email: str, db: Session = Depends(get_db)):
     """_summary_ request a password reset for the user with the given email.
 
     Args:
