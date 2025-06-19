@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app import auth_util
 from app.config import settings
 from app.database import get_db
-from app.schema.auth_schema import Token, UserRegister
+from app.schema.auth_schema import ResetPasswordRequest, Token, UserRegister
 from app.model.user_model import User
 from app.router.dependencies import *
 from app.router.aws_ses import send_verification_email
@@ -109,6 +109,7 @@ def verify_email(code: str, user_register: UserRegister, db: Session = Depends(g
     return {"message": "User verified and created successfully"}
 
 
+
 @router.post("/reset-pw-request", response_model=dict , status_code=status.HTTP_200_OK)
 def reset_password_request(email: str, db: Session = Depends(get_db)):
     """_summary_ : 
@@ -128,11 +129,29 @@ def reset_password_request(email: str, db: Session = Depends(get_db)):
         _type_: _description_ a message in JSON format indicating success with 200
     """
     # Logic for sending reset password email goes here
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+
+    code = str(uuid4())[:8]
+    expires_at = datetime.now() + timedelta(minutes=10)
+
+    db.execute(
+        text("INSERT INTO verification_code (email, code, expires_at) VALUES (:email, :code, :expires_at) "
+             "ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at"),
+        {"email": email, "code": code, "expires_at": expires_at}
+    )
+    db.commit()
+
+    send_verification_email(email, code)
+
+    
     return {"message": "Password reset request sent successfully"}
 
 
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-def reset_password(db: Session = Depends(get_db)):
+def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email and the verification code match, proceed to step 2, if not raise an exception
     2. update the user password
@@ -143,4 +162,25 @@ def reset_password(db: Session = Depends(get_db)):
         _type_: _description_ a message in JSON format indicating success with 200
     """
     # Logic for resetting password goes here
+
+    record = db.execute(
+        text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
+        {"email": request.email, "code": request.code}
+    ).fetchone()
+
+    if not record or record.expires_at < datetime.now():
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    hashed_password = auth_util.get_password_hash(request.new_password)
+    user.password = hashed_password
+
+    db.execute(
+        text("DELETE FROM verification_code WHERE email = :email"),
+        {"email": request.email}
+    )
+    db.commit()
+
     return {"message": "Password reset successfully"}
