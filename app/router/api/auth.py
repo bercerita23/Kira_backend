@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app import auth_util
 from app.config import settings
 from app.database import get_db
-from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserRegister
+from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserCreateWithCode, UserRegister
 from app.model.user_model import User
 from app.router.dependencies import *
 from app.router.aws_ses import send_verification_email
@@ -67,46 +67,66 @@ def login_for_access_token(
 
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
-def register(user_register: UserRegister, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_register.email).first()
-    if user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    code = str(uuid4())[:8]
-    expires_at = datetime.now() + timedelta(minutes=10)
-
-    db.execute(
-        text("INSERT INTO verification_code (email, code, expires_at) VALUES (:email, :code, :expires_at) ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at"),
-        {"email": user_register.email, "code": code, "expires_at": expires_at}
-    )
-    db.commit()
-
-    send_verification_email(user_register.email, code)
-
-    return {"message": "Verification code sent to email"}
-    
-@router.post("/verified-register", response_model=dict)
-def verify_email(code: str, user_register: UserRegister, db: Session = Depends(get_db)):
+def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
+    """
+    """
     record = db.execute(
-        text("SELECT * FROM verification_code WHERE email = :email"),
-        {"email": user_register.email}
+        text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
+        {"email": request.email, "code": request.code}
     ).fetchone()
 
-    if not record or record.code != code or record.expires_at < datetime.now():
-        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    if not record or record.expires_at < datetime.now():
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
 
-    # Delete verification entry
-    db.execute(text("DELETE FROM verification_code WHERE email = :email"), {"email": user_register.email})
+    db.execute(text("DELETE FROM verification_code WHERE email = :email"), {"email": request.email})
 
-    # Hash and save user
-    hashed_password = auth_util.get_password_hash(user_register.password)
-    user_register.password = hashed_password
-    new_user = User(**user_register.model_dump())
+    hashed_password = auth_util.get_password_hash(request.password)
+
+    # always 'stu' for now
+    new_user = User(
+        email=request.email,
+        password=hashed_password,
+        first_name=request.first_name,
+        last_name=request.last_name,
+        role="stu",
+        school_id=None  # If you later implement school check you can fill this
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "User verified and created successfully"}
+    return {"message": "User registered successfully"}
+    
+@router.post("/register-request", response_model=dict, status_code=status.HTTP_200_OK)
+def register_request(request: EmailRequest, db: Session = Depends(get_db)):
+     user = db.query(User).filter(User.email == request.email).first()
+     if user:
+         raise HTTPException(status_code=400, detail="Email already registered")
+     # TODO: create domain col in school table
+     # TODO: email domain belongs to allowed schools
+     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     # domain = request.email.split('@')[-1]
+     # school = db.query(School).filter(School.domain == domain).first()
+     # if not school:
+     #     raise HTTPException(status_code=400, detail="Email domain not recognized")
+ 
+     # Generate code
+     code = str(uuid4())[:8]
+     expires_at = datetime.now() + timedelta(minutes=10)
+ 
+     db.execute(
+         text("""
+             INSERT INTO verification_code (email, code, expires_at)
+             VALUES (:email, :code, :expires_at)
+             ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at
+         """),
+         {"email": request.email, "code": code, "expires_at": expires_at}
+     )
+     db.commit()
+ 
+     send_verification_email(request.email, code)
+ 
+     return {"message": "Verification code sent to email"}
 
 
 

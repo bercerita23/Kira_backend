@@ -29,3 +29,11 @@ class ResetPasswordRequest(BaseModel):
     email: str
     code: str
     new_password: str
+
+
+class UserCreateWithCode(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    password: str
+    code: str
