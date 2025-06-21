@@ -7,7 +7,7 @@ SENDER = "Bercerita KIRA <dev-team@kira-api.com>"
 
 # Replace recipient@example.com with a "To" address. If your account 
 # is still in the sandbox, this address must be verified.
-RECIPIENT = "khashayar@bercerita.org"
+RECIPIENT = "seankh4444@gmail.com"
 
 # Specify a configuration set. If you do not want to use a configuration
 # set, comment the following variable, and the 
@@ -35,6 +35,7 @@ BODY_HTML = """<html>
     <a href='https://aws.amazon.com/ses/'>Amazon SES</a> using the
     <a href='https://aws.amazon.com/sdk-for-python/'>
       AWS SDK for Python (Boto)</a>.</p>
+      cusomize link 
 </body>
 </html>
             """            

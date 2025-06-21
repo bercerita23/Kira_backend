@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app import auth_util
+from app.auth_util import *
 from app.config import settings
 from app.database import get_db
 from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserCreateWithCode, UserRegister
@@ -52,7 +52,7 @@ def login_for_access_token(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect Credentials",
         )
-    if not auth_util.verify_password(form_data.password, user.password):
+    if not verify_password(form_data.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect Credentials",
@@ -60,7 +60,7 @@ def login_for_access_token(
 
     # access token creation
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth_util.create_access_token(
+    access_token = create_access_token(
         subject=user.id, email=user.email, first_name=user.first_name, role=user.role, school_id=user.school_id, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
@@ -70,17 +70,19 @@ def login_for_access_token(
 def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     """
     """
-    record = db.execute(
+    code = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
         {"email": request.email, "code": request.code}
     ).fetchone()
 
-    if not record or record.expires_at < datetime.now():
+    if not code :
+        raise HTTPException(status_code=400, detail="Verification code is incorrect")
+    if code.expired_at < datetime.now():
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
 
     db.execute(text("DELETE FROM verification_code WHERE email = :email"), {"email": request.email})
 
-    hashed_password = auth_util.get_password_hash(request.password)
+    hashed_password = get_password_hash(request.password)
 
     # always 'stu' for now
     new_user = User(
@@ -99,34 +101,37 @@ def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     
 @router.post("/register-request", response_model=dict, status_code=status.HTTP_200_OK)
 def register_request(request: EmailRequest, db: Session = Depends(get_db)):
-     user = db.query(User).filter(User.email == request.email).first()
-     if user:
-         raise HTTPException(status_code=400, detail="Email already registered")
-     # TODO: create domain col in school table
-     # TODO: email domain belongs to allowed schools
-     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     # domain = request.email.split('@')[-1]
-     # school = db.query(School).filter(School.domain == domain).first()
-     # if not school:
-     #     raise HTTPException(status_code=400, detail="Email domain not recognized")
- 
-     # Generate code
-     code = str(uuid4())[:8]
-     expires_at = datetime.now() + timedelta(minutes=10)
- 
-     db.execute(
-         text("""
-             INSERT INTO verification_code (email, code, expires_at)
-             VALUES (:email, :code, :expires_at)
-             ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at
-         """),
-         {"email": request.email, "code": code, "expires_at": expires_at}
-     )
-     db.commit()
- 
-     send_verification_email(request.email, code)
- 
-     return {"message": "Verification code sent to email"}
+    user = db.query(User).filter(User.email == request.email).first()
+    if user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # TODO: create domain col in school table
+    # TODO: email domain belongs to allowed schools
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # domain = request.email.split('@')[-1]
+    # school = db.query(School).filter(School.domain == domain).first()
+    # if not school:
+    #     raise HTTPException(status_code=400, detail="Email domain not recognized")
+
+    # code generation
+    code = str(uuid4())[:8]
+    expires_at = datetime.now() + timedelta(minutes=10)
+
+    db.execute(
+        text("""
+            INSERT INTO verification_code (email, code, expires_at)
+            VALUES (:email, :code, :expires_at)
+            ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at
+        """),
+        {"email": request.email, "code": code, "expires_at": expires_at}
+    )
+    db.commit()
+
+
+    # TODO: change the method 
+    send_verification_email(request.email, code)
+
+    return {"message": "Verification code sent to email"}
 
 
 
@@ -163,7 +168,7 @@ def reset_password_request(request: EmailRequest, db: Session = Depends(get_db))
         {"email": email, "code": code, "expires_at": expires_at}
     )
     db.commit()
-
+    # change to the actual send email function 
     send_verification_email(email, code)
 
     
@@ -188,13 +193,15 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
         {"email": request.email, "code": request.code}
     ).fetchone()
 
-    if not record or record.expires_at < datetime.now():
-        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    if record.expires_at < datetime.now(): 
+        raise HTTPException(status_code=400, detail="Expired verification code")
 
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    hashed_password = auth_util.get_password_hash(request.new_password)
+    hashed_password = get_password_hash(request.new_password)
     user.password = hashed_password
 
     db.execute(

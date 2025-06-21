@@ -1,0 +1,21 @@
+from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
+from sqlalchemy.orm import relationship
+from app.database.base_class import Base
+from datetime import datetime
+
+class User(Base):
+    __tablename__ = "users"
+     
+    user_id = Column(String(12), primary_key=True, index=True)
+    school_id = Column(String(8), ForeignKey("schools.school_id"))
+    email = Column(String(255), nullable=False, unique=True )
+    hashed_password = Column(String(255), nullable=False)
+    first_name = Column(String(255), nullable=False)
+    last_name = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.now())
+    notes = Column(String(512), nullable=True)
+    last_login_time = Column(DateTime, nullable=True)
+    is_super_admin = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
+
+    school = relationship("School", back_populates="users")

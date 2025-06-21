@@ -16,21 +16,21 @@ app = FastAPI(title="Kira", version="0.0.1")
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup code here
-    cleanup_task = asyncio.create_task(cleanup_verification_codes())
-    try:
-        yield
-    finally:
-        # Shutdown code here - cancel cleanup task gracefully
-        cleanup_task.cancel()
-        try:
-            await cleanup_task
-        except asyncio.CancelledError:
-            pass
-
-app.router.lifespan_context = lifespan
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     # Startup code here
+#     cleanup_task = asyncio.create_task(cleanup_verification_codes())
+#     try:
+#         yield
+#     finally:
+#         # Shutdown code here - cancel cleanup task gracefully
+#         cleanup_task.cancel()
+#         try:
+#             await cleanup_task
+#         except asyncio.CancelledError:
+#             pass
+# 
+# app.router.lifespan_context = lifespan
 
 #####################
 ### test endpoint ###
