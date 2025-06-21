@@ -8,7 +8,7 @@ from app.auth_util import *
 from app.config import settings
 from app.database import get_db
 from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserCreateWithCode, UserRegister
-from app.model.user_model import User
+from app.model.users import User
 from app.router.dependencies import *
 from app.router.aws_ses import send_verification_email
 from uuid import uuid4
