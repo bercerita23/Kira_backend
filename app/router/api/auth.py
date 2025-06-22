@@ -57,7 +57,7 @@ async def login(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# EMAIL VERIFICATION <--- cant the verification be done in one of the routes automatically?
+# EMAIL VERIFICATION
 @router.post("/request-email")
 async def request_email_verification():
     # Generate verification code and expires_at
