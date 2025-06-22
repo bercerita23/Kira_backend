@@ -57,7 +57,7 @@ async def login(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# EMAIL VERIFICATION
+# EMAIL VERIFICATION <--- cant the verification be done in one of the routes automatically?
 @router.post("/request-email")
 async def request_email_verification():
     # Generate verification code and expires_at
@@ -65,15 +65,30 @@ async def request_email_verification():
     # Send code via email
     pass
 
-@router.get("/code")
-async def get_verification_code():
-    # Return verification entry by email from verification_code table
-    pass
+@router.get("/code", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
+    result = db.execute(
+        text("SELECT * FROM verification_code WHERE email = :email"),
+        {"email": email}
 
-@router.delete("/code")
-async def delete_verification_code():
+    ).fetchone()
+    if not result:
+        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
+    return {"email": result.email,"code": result.code,"expires_at": result.expires_at.isoformat()}
+
+@router.delete("/code", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
     # Delete verification code entry from verification_code table
-    pass
+    # Return verification entry by email from verification_code table
+    result = db.execute(
+        text("DELETE FROM verification_code WHERE email = :email"),
+        {"email": email}
+    )
+    db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
+    return {"message": "Verification code deleted successfully"}
+
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
 async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
