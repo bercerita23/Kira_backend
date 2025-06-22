@@ -16,17 +16,9 @@ from uuid import uuid4
 
 router = APIRouter()
 
-# NEED TO BE COMMENTED OUT IN PRODUCTION
-@router.get("/db")
-def test_db(db: Session = Depends(get_db)):
-    res = db.query(User).filter(User.email.isnot(None)).all()
-    return {
-        "Hello From: ": res
-    }
-
 
 @router.post("/login", response_model=Token)
-def login_for_access_token(
+async def login(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Dict[str, Any]:
     """_summary_ login a user and return an access token w/ valid credentials. 
@@ -52,7 +44,7 @@ def login_for_access_token(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect Credentials",
         )
-    if not verify_password(form_data.password, user.password):
+    if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect Credentials",
@@ -65,9 +57,26 @@ def login_for_access_token(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+# EMAIL VERIFICATION
+@router.post("/request-email")
+async def request_email_verification():
+    # Generate verification code and expires_at
+    # Store in verification_code table
+    # Send code via email
+    pass
+
+@router.get("/code")
+async def get_verification_code():
+    # Return verification entry by email from verification_code table
+    pass
+
+@router.delete("/code")
+async def delete_verification_code():
+    # Delete verification code entry from verification_code table
+    pass
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
-def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
+async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     """
     """
     code = db.execute(
@@ -100,7 +109,7 @@ def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     return {"message": "User registered successfully"}
     
 @router.post("/register-request", response_model=dict, status_code=status.HTTP_200_OK)
-def register_request(request: EmailRequest, db: Session = Depends(get_db)):
+async def register_request(request: EmailRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
     if user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -136,7 +145,7 @@ def register_request(request: EmailRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-pw-request", response_model=dict , status_code=status.HTTP_200_OK)
-def reset_password_request(request: EmailRequest, db: Session = Depends(get_db)):
+async def reset_password_request(request: EmailRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email exists in the database, if yes proceed to step 2, if no raise an exception
     2. generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
@@ -176,7 +185,7 @@ def reset_password_request(request: EmailRequest, db: Session = Depends(get_db))
 
 
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email and the verification code match, proceed to step 2, if not raise an exception
     2. update the user password
