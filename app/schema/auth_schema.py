@@ -22,7 +22,7 @@ class UserRegister(BaseModel):
     first_name: str
     last_name: Optional[str] = None
 
-class EmailRequest(BaseModel):
+class VerificationRequest(BaseModel):
     email: EmailStr
 
 class ResetPasswordRequest(BaseModel):

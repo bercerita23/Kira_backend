@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.auth_util import *
 from app.config import settings
 from app.database import get_db
-from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserCreateWithCode, UserRegister
+from app.schema.auth_schema import ResetPasswordRequest, VerificationRequest, Token, UserCreateWithCode, UserRegister
 from app.model.users import User
 from app.model.verification_codes import VerificationCodes
 from app.router.dependencies import *
@@ -70,9 +70,57 @@ async def login(
 
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/request-email", response_model=dict, status_code=status.HTTP_200_OK)
+
+@router.post("/request-email-register", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_email_verification(
-    email: EmailRequest, db: Session = Depends(get_db)
+    request: VerificationRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """_summary_: Frontend will call this endpoint to request a verification code for email verification. 
+    1. Generate an 8-digit code and store it in the database with email & expiration time of 10 minutes.
+    2. Send the code to the email address provided in the request with SES.
+
+    Args:
+        email (EmailRequest): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    result = db.query(VerificationCodes).filter(
+        VerificationCodes.email == request.email).first()
+    temp = None
+    if result: 
+        temp = db.execute(
+        text("DELETE FROM verification_code WHERE email = :email"),
+        {"email": request.email}
+    )
+    db.commit()
+    if temp.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
+    
+    # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
+    code = str(uuid4())[:8]
+    expires_at = datetime.now() + timedelta(minutes=10)
+
+    entry = VerificationCodes(
+        email=request.email,
+        code=code,
+        expires_at=expires_at)
+    
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    
+    send_verification_email(request.email, code)
+    return {"message": f"Verification code was sent to {request.email}"}
+
+
+@router.post("/request-email-pw-reset", response_model=dict, status_code=status.HTTP_200_OK)
+async def request_email_verification(
+    request: VerificationRequest, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """_summary_: Frontend will call this endpoint to request a verification code for email verification. 
     1. If the email exists in the database, proceed to step 2, if not raise an exception.
@@ -91,20 +139,32 @@ async def request_email_verification(
     """
     # fetch user by email
     user = db.query(User).filter(
-        User.email == email.email).first()
-
+        User.email == request.email).first()
     # if user is not found or password is incorrect, raise an exception
-    #. if not user:
-    #.     raise HTTPException(
-    #.         status_code=status.HTTP_400_BAD_REQUEST,
-    #.         detail="Email was not registered. Please register first.",
-    #.     )  
+    if not user:
+        raise HTTPException(
+           status_code=status.HTTP_400_BAD_REQUEST,
+           detail="Email was not registered. Please register first.",
+        )  
+    
+    result = db.query(VerificationCodes).filter(
+        VerificationCodes.email == request.email).first()
+    temp = None
+    if result: 
+        temp = db.execute(
+        text("DELETE FROM verification_code WHERE email = :email"),
+        {"email": request.email}
+    )
+    db.commit()
+    if temp.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
+    
     # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
     code = str(uuid4())[:8]
     expires_at = datetime.now() + timedelta(minutes=10)
 
     entry = VerificationCodes(
-        email=email.email,
+        email=request.email,
         code=code,
         expires_at=expires_at)
     
@@ -112,8 +172,8 @@ async def request_email_verification(
     db.commit()
     db.refresh(entry)
     
-    send_verification_email(email.email, code)
-    return {"message": f"Verification code was sent to {email.email}"}
+    send_verification_email(request.email, code)
+    return {"message": f"Verification code was sent to {request.email}"}
     
 
 @router.get("/code", response_model=dict, status_code=status.HTTP_200_OK)
@@ -152,7 +212,7 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
 
     if not code :
         raise HTTPException(status_code=400, detail="Verification code is incorrect")
-    if code.expired_at < datetime.now():
+    if code.expires_at < datetime.now():
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
 
     db.execute(text("DELETE FROM verification_code WHERE email = :email"), {"email": request.email})
@@ -217,7 +277,8 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email and the verification code match, proceed to step 2, if not raise an exception
-    2. update the user password
+    2. check if the code is expired
+    2. if valid reset the password
     Raises:
         HTTPException: _description_
 
@@ -226,10 +287,10 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     """
     # Logic for resetting password goes here
 
-    record = db.execute(
-        text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
-        {"email": request.email, "code": request.code}
-    ).fetchone()
+    record = db.query(VerificationCodes).filter(
+        VerificationCodes.email == request.email,
+        VerificationCodes.code == request.code
+    ).first()
 
     if not record:
         raise HTTPException(status_code=400, detail="Invalid verification code")
@@ -240,12 +301,9 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     hashed_password = get_password_hash(request.new_password)
-    user.password = hashed_password
+    user.hashed_password = hashed_password = hashed_password  
 
-    db.execute(
-        text("DELETE FROM verification_code WHERE email = :email"),
-        {"email": request.email}
-    )
+    db.delete(record)
     db.commit()
 
     return {"message": "Password reset successfully"}
