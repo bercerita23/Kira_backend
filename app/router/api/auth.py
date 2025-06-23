@@ -21,7 +21,7 @@ router = APIRouter()
 @router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
 async def login(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
-) -> Dict[str, Any]:
+):
     """_summary_ login a user and return an access token w/ valid credentials. 
 
     Args:
@@ -73,7 +73,22 @@ async def login(
 @router.post("/request-email", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_email_verification(
     email: EmailRequest, db: Session = Depends(get_db)
-):
+) -> Dict[str, Any]:
+    """_summary_: Frontend will call this endpoint to request a verification code for email verification. 
+    1. If the email exists in the database, proceed to step 2, if not raise an exception.
+    2. Generate an 8-digit code and store it in the database with email & expiration time of 10 minutes.
+    3. Send the code to the email address provided in the request with SES.
+
+    Args:
+        email (EmailRequest): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     # fetch user by email
     user = db.query(User).filter(
         User.email == email.email).first()
