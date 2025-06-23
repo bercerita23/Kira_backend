@@ -178,6 +178,19 @@ async def request_email_verification(
 
 @router.get("/code", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
+    """_summary_
+
+    Args:
+        email (str, optional): _description_. Defaults to Query(...).
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     result = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email"),
         {"email": email}
@@ -189,6 +202,18 @@ async def get_verification_code(email: str = Query(...), db: Session = Depends(g
 
 @router.delete("/code", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
+    """_summary_
+
+    Args:
+        email (str, optional): _description_. Defaults to Query(...).
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     # Delete verification code entry from verification_code table
     # Return verification entry by email from verification_code table
     result = db.execute(
@@ -203,8 +228,8 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
 async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
-    """
-    """
+    
+
     code = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
         {"email": request.email, "code": request.code}
