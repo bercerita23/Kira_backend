@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.schema.auth_schema import ResetPasswordRequest, EmailRequest, Token, UserCreateWithCode, UserRegister
 from app.model.users import User
+from app.model.verification_codes import VerificationCodes
 from app.router.dependencies import *
 from app.router.aws_ses import send_verification_email
 from uuid import uuid4
@@ -17,7 +18,7 @@ from uuid import uuid4
 router = APIRouter()
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
 async def login(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Dict[str, Any]:
@@ -50,20 +51,55 @@ async def login(
             detail="Incorrect Credentials",
         )
 
-    # access token creation
+    # token creation base on role
+    access_token = None
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        subject=user.id, email=user.email, first_name=user.first_name, role=user.role, school_id=user.school_id, expires_delta=access_token_expires
-    )
+    if user.is_super_admin: 
+        access_token = create_access_token(
+            subject=user.id, email=user.email, first_name=user.first_name, role="super_admin", school_id=user.school_id, expires_delta=access_token_expires
+        )
+    elif user.is_admin and not user.is_super_admin: 
+        access_token = create_access_token(
+            subject=user.id, email=user.email, first_name=user.first_name, role="admin", school_id=user.school_id, expires_delta=access_token_expires
+        )
+    else: 
+        access_token = create_access_token(
+            subject=user.id, email=user.email, first_name=user.first_name, role="student", school_id=user.school_id, expires_delta=access_token_expires
+        )
+
+
     return {"access_token": access_token, "token_type": "bearer"}
 
-# EMAIL VERIFICATION
-@router.post("/request-email")
-async def request_email_verification():
-    # Generate verification code and expires_at
-    # Store in verification_code table
-    # Send code via email
-    pass
+@router.post("/request-email", response_model=dict, status_code=status.HTTP_200_OK)
+async def request_email_verification(
+    email: EmailRequest, db: Session = Depends(get_db)
+):
+    # fetch user by email
+    user = db.query(User).filter(
+        User.email == email.email).first()
+
+    # if user is not found or password is incorrect, raise an exception
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email was not registered. Please register first.",
+        )  
+    # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
+    code = str(uuid4())[:8]
+    expires_at = datetime.now() + timedelta(minutes=10)
+
+    entry = VerificationCodes(
+        email=email.email,
+        code=code,
+        expires_at=expires_at)
+    
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    
+    send_verification_email(email.email, code)
+    return {"message": f"Verification code was sent to {email.email}"}
+    
 
 @router.get("/code")
 async def get_verification_code():
@@ -107,45 +143,8 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return {"message": "User registered successfully"}
-    
-@router.post("/register-request", response_model=dict, status_code=status.HTTP_200_OK)
-async def register_request(request: EmailRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
-    if user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # TODO: create domain col in school table
-    # TODO: email domain belongs to allowed schools
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # domain = request.email.split('@')[-1]
-    # school = db.query(School).filter(School.domain == domain).first()
-    # if not school:
-    #     raise HTTPException(status_code=400, detail="Email domain not recognized")
-
-    # code generation
-    code = str(uuid4())[:8]
-    expires_at = datetime.now() + timedelta(minutes=10)
-
-    db.execute(
-        text("""
-            INSERT INTO verification_code (email, code, expires_at)
-            VALUES (:email, :code, :expires_at)
-            ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at
-        """),
-        {"email": request.email, "code": code, "expires_at": expires_at}
-    )
-    db.commit()
-
-
-    # TODO: change the method 
-    send_verification_email(request.email, code)
 
     return {"message": "Verification code sent to email"}
-
-
-
-@router.post("/reset-pw-request", response_model=dict , status_code=status.HTTP_200_OK)
-async def reset_password_request(request: EmailRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email exists in the database, if yes proceed to step 2, if no raise an exception
     2. generate a 8 digit code and store it in the database with email & expiration time of 10 minutes

@@ -6,5 +6,5 @@ class VerificationCodes(Base):
     __tablename__ = "verification_code"
     
     email = Column(String(255), primary_key=True, index=True)
-    varification_code = Column(String(8), nullable=False)
+    code = Column(String(8), nullable=False)
     expires_at = Column(DateTime, nullable=False)
