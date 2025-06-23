@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.auth_util import *
 from app.config import settings
 from app.database import get_db
-from app.schema.auth_schema import ResetPasswordRequest, VerificationRequest, Token, UserCreateWithCode, UserRegister
+from app.schema.auth_schema import LoginRequest, ResetPasswordRequest, VerificationRequest, Token, UserCreateWithCode, UserRegister
 from app.model.users import User
 from app.model.verification_codes import VerificationCodes
 from app.router.dependencies import *
@@ -19,56 +19,54 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
-async def login(
-    db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
-):
-    """_summary_ login a user and return an access token w/ valid credentials. 
-
-    Args:
-        db (Session, optional): _description_. Defaults to Depends(get_db).
-        form_data (OAuth2PasswordRequestForm, optional): _description_. Defaults to Depends().
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        Dict[str, Any]: _description_
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Flexible login: accepts user_id and/or email along with password.
     """
 
-    # fetch user by email
-    user = db.query(User).filter(
-        User.email == form_data.username).first()
+    user = None
 
-    # if user is not found or password is incorrect, raise an exception
+    # Try to fetch user based on provided identifiers
+    if request.user_id:
+        user = db.query(User).filter(User.user_id  == request.user_id).first()
+
+    if not user and request.email:
+        user = db.query(User).filter(User.email == request.email).first()
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect Credentials",
+            detail="User not found"
         )
-    if not verify_password(form_data.password, user.hashed_password):
+
+    # Verify password
+    if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect Credentials",
+            detail="Incorrect credentials"
         )
 
-    # token creation base on role
-    access_token = None
+    # Token creation based on role
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    if user.is_super_admin: 
-        access_token = create_access_token(
-            subject=user.id, email=user.email, first_name=user.first_name, role="super_admin", school_id=user.school_id, expires_delta=access_token_expires
-        )
-    elif user.is_admin and not user.is_super_admin: 
-        access_token = create_access_token(
-            subject=user.id, email=user.email, first_name=user.first_name, role="admin", school_id=user.school_id, expires_delta=access_token_expires
-        )
-    else: 
-        access_token = create_access_token(
-            subject=user.id, email=user.email, first_name=user.first_name, role="student", school_id=user.school_id, expires_delta=access_token_expires
-        )
 
+    if user.is_super_admin:
+        role = "super_admin"
+    elif user.is_admin:
+        role = "admin"
+    else:
+        role = "student"
+
+    access_token = create_access_token(
+        subject=user.user_id,
+        email=user.email,
+        first_name=user.first_name,
+        role=role,
+        school_id=user.school_id,
+        expires_delta=access_token_expires
+    )
 
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 
 @router.post("/request-email-register", response_model=dict, status_code=status.HTTP_200_OK)
@@ -285,7 +283,7 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     hashed_password = get_password_hash(request.new_password)
-    user.hashed_password = hashed_password = hashed_password  
+    user.hashed_password = hashed_password 
 
     db.delete(record)
     db.commit()
