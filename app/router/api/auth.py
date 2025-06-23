@@ -118,6 +118,19 @@ async def request_email_verification(
 
 @router.get("/code", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
+    """_summary_
+
+    Args:
+        email (str, optional): _description_. Defaults to Query(...).
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     result = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email"),
         {"email": email}
@@ -129,6 +142,18 @@ async def get_verification_code(email: str = Query(...), db: Session = Depends(g
 
 @router.delete("/code", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
+    """_summary_
+
+    Args:
+        email (str, optional): _description_. Defaults to Query(...).
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     # Delete verification code entry from verification_code table
     # Return verification entry by email from verification_code table
     result = db.execute(
@@ -143,8 +168,8 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
 async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
-    """
-    """
+    
+
     code = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
         {"email": request.email, "code": request.code}
@@ -217,7 +242,8 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email and the verification code match, proceed to step 2, if not raise an exception
-    2. update the user password
+    2. check if the code is expired
+    2. if valid reset the password
     Raises:
         HTTPException: _description_
 
@@ -226,10 +252,10 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     """
     # Logic for resetting password goes here
 
-    record = db.execute(
-        text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
-        {"email": request.email, "code": request.code}
-    ).fetchone()
+    record = db.query(VerificationCodes).filter(
+        VerificationCodes.email == request.email,
+        VerificationCodes.code == request.code
+    ).first()
 
     if not record:
         raise HTTPException(status_code=400, detail="Invalid verification code")
@@ -240,12 +266,9 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     hashed_password = get_password_hash(request.new_password)
-    user.password = hashed_password
+    user.hashed_password = hashed_password = hashed_password  
 
-    db.execute(
-        text("DELETE FROM verification_code WHERE email = :email"),
-        {"email": request.email}
-    )
+    db.delete(record)
     db.commit()
 
     return {"message": "Password reset successfully"}
