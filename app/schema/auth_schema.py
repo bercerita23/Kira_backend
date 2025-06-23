@@ -32,15 +32,12 @@ class ResetPasswordRequest(BaseModel):
 
 
 class UserCreateWithCode(BaseModel):
-    # user_id
     employee_code:Optional[str] = None
-    school_id: str
+    school_id: Optional[str] = None
     email: EmailStr
-    hashed_password: str
+    password: str
     first_name: str
     last_name: str
-    password: str
-    code: str
 
 class LoginRequest(BaseModel):
     user_id: Optional[str] = None

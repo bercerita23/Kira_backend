@@ -8,7 +8,7 @@ class User(Base):
      
     user_id = Column(String(12), primary_key=True, index=True)
     school_id = Column(String(8), ForeignKey("schools.school_id"))
-    email = Column(String(255), nullable=False, unique=True )
+    email = Column(String(255), nullable=True, unique=True )
     hashed_password = Column(String(255), nullable=False)
     first_name = Column(String(255), nullable=False)
     last_name = Column(String(255), nullable=False)

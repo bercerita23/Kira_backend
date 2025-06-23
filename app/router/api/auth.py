@@ -30,8 +30,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     # Try to fetch user based on provided identifiers
     if request.user_id:
         user = db.query(User).filter(User.user_id  == request.user_id).first()
-
-    if not user and request.email:
+    elif request.email:
         user = db.query(User).filter(User.email == request.email).first()
 
     if not user:
@@ -47,15 +46,18 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             detail="Incorrect credentials"
         )
 
-    # Token creation based on role
+   
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
+    # Token creation based on role
+    role = None
     if user.is_super_admin:
         role = "super_admin"
     elif user.is_admin:
         role = "admin"
-    else:
+    elif (not user.is_super_admin) and (not user.is_admin):
         role = "student"
+
+    
 
     access_token = create_access_token(
         subject=user.user_id,
@@ -65,7 +67,8 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         school_id=user.school_id,
         expires_delta=access_token_expires
     )
-
+    print("Logging in:", user.user_id, user.email, user.first_name, user.is_admin, user.is_super_admin)
+    print(access_token)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -90,19 +93,17 @@ async def request_email_verification(
     """
     result = db.query(VerificationCode).filter(
         VerificationCode.email == request.email).first()
-    temp = None
+    
     if result: 
         temp = db.execute(
-        text("DELETE FROM verification_code WHERE email = :email"),
+        text("DELETE FROM verification_codes WHERE email = :email"),
         {"email": request.email}
     )
     db.commit()
-    if temp.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
     
     # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
     code = str(uuid4())[:8]
-    expires_at = datetime.now() + timedelta(minutes=10)
+    expires_at = datetime.now() + timedelta(minutes=20)
 
     entry = VerificationCode(
         email=request.email,
@@ -191,12 +192,15 @@ async def get_verification_code(email: str = Query(...), db: Session = Depends(g
     """
 
     result = db.execute(
-        text("SELECT * FROM verification_code WHERE email = :email"),
+        text("SELECT * FROM verification_codes WHERE email = :email"),
         {"email": email}
 
     ).fetchone()
     if not result:
         raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
+    if result.expires_at < datetime.now(): 
+        raise HTTPException(status_code=400, detail="Expired verification code")
+    
     return {"email": result.email,"code": result.code,"expires_at": result.expires_at.isoformat()}
 
 @router.delete("/code", status_code=status.HTTP_204_NO_CONTENT)
@@ -216,7 +220,7 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
     # Delete verification code entry from verification_code table
     # Return verification entry by email from verification_code table
     result = db.execute(
-        text("DELETE FROM verification_code WHERE email = :email"),
+        text("DELETE FROM verification_codes WHERE email = :email"),
         {"email": email}
     )
     db.commit()
@@ -229,8 +233,8 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
 async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     """_summary_: Register a new user with email verification code.(possibly employee_code)
     1. check if the email already exists, if so raise an exception
-    2. check the verification code, if not found raise an exception
-    3. if the code is expired raise an exception
+    2. check the verification code, if not found raise an exception if the code is expired raise an exception
+    3. codes valid, process to register the user base on the employee_code
     Args:
         request (UserCreateWithCode): _description_
         db (Session, optional): _description_. Defaults to Depends(get_db).
@@ -247,27 +251,19 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # check the verification code
-    record = db.query(VerificationCode).filter(
-            VerificationCode.email == request.email,
-            VerificationCode.code == request.code
-        ).first()   
-    if not record :
-        raise HTTPException(status_code=400, detail="Verification code is incorrect")
-    if record.expires_at < datetime.now():
-        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
     
     # if trying to register as an admin or super admin
     new_user = None
     if request.employee_code:
         temp = db.query(EmployeeCode).filter(
             EmployeeCode.code == request.employee_code).first()
+        
         if temp.is_super_admin: # super admin
             new_user = User(
                 user_id = generate_unique_user_id(db),
                 school_id = None,
                 email=request.email,
-                password=get_password_hash(request.password),
+                hashed_password=get_password_hash(request.password),
                 first_name=request.first_name,
                 last_name=request.last_name,
                 is_super_admin=True
@@ -279,23 +275,22 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
                 user_id = generate_unique_user_id(db),
                 email=request.email,
                 school_id=request.school_id,
-                password=get_password_hash(request.password),
+                hashed_password=get_password_hash(request.password),
                 first_name=request.first_name,
                 last_name=request.last_name,
                 is_admin=True
             )
     
-        else: # student
-            new_user = User(
-                user_id = generate_unique_user_id(db),
-                school_id = request.school_id,
-                email=request.email,
-                password=get_password_hash(request.password),
-                first_name=request.first_name,
-                last_name=request.last_name,
-            )
+    else: # student
+        new_user = User(
+            user_id = generate_unique_user_id(db),
+            school_id = request.school_id,
+            email=request.email,
+            hashed_password=get_password_hash(request.password),
+            first_name=request.first_name,
+            last_name=request.last_name,
+        )
     db.add(new_user)
-    db.delete(record)
     db.commit()
     db.refresh(new_user)
     return {"message": "User registered successfully"}
@@ -312,17 +307,6 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     Returns:
         _type_: _description_ a message in JSON format indicating success with 200
     """
-    # Logic for resetting password goes here
-
-    record = db.query(VerificationCode).filter(
-        VerificationCode.email == request.email,
-        VerificationCode.code == request.code
-    ).first()
-
-    if not record:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
-    if record.expires_at < datetime.now(): 
-        raise HTTPException(status_code=400, detail="Expired verification code")
 
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
@@ -330,7 +314,7 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     hashed_password = get_password_hash(request.new_password)
     user.hashed_password = hashed_password 
 
-    db.delete(record)
+
     db.commit()
 
     return {"message": "Password reset successfully"}
