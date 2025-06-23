@@ -67,8 +67,9 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         school_id=user.school_id,
         expires_delta=access_token_expires
     )
-    print("Logging in:", user.user_id, user.email, user.first_name, user.is_admin, user.is_super_admin)
-    print(access_token)
+    user.last_login_time = datetime.now()
+    db.commit()
+    
     return {"access_token": access_token, "token_type": "bearer"}
 
 
