@@ -41,3 +41,8 @@ class UserCreateWithCode(BaseModel):
     last_name: str
     password: str
     code: str
+
+class LoginRequest(BaseModel):
+    user_id: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: str
