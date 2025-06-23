@@ -94,11 +94,11 @@ async def request_email_verification(
         User.email == email.email).first()
 
     # if user is not found or password is incorrect, raise an exception
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email was not registered. Please register first.",
-        )  
+    #. if not user:
+    #.     raise HTTPException(
+    #.         status_code=status.HTTP_400_BAD_REQUEST,
+    #.         detail="Email was not registered. Please register first.",
+    #.     )  
     # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
     code = str(uuid4())[:8]
     expires_at = datetime.now() + timedelta(minutes=10)

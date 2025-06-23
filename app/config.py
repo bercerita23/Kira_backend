@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_EMAIL: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
 
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_DEFAULT_REGION: str
+
 
 # class ContainerDevSettings(Settings):
 #     model_config = SettingsConfigDict(

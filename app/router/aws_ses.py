@@ -1,6 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 from datetime import datetime
+from app.config import settings
 
 SENDER = "Bercerita KIRA <dev-team@kira-api.com>"
 CONFIGURATION_SET = "ConfigSet"
@@ -66,7 +67,9 @@ def send_verification_email(email: str, code: str):
 
 
     try:
-        client = boto3.client('ses', region_name=AWS_REGION)
+        client = boto3.client('ses', region_name=AWS_REGION,
+                               aws_access_key_id=settings.AWS_ACCESS_KEY_ID, 
+                               aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
         response = client.send_email(
             Destination={
                 'ToAddresses': [email],
