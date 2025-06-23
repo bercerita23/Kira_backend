@@ -228,8 +228,6 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
 async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
-    
-
     code = db.execute(
         text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
         {"email": request.email, "code": request.code}
@@ -258,45 +256,6 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return {"message": "User registered successfully"}
-
-    return {"message": "Verification code sent to email"}
-    """_summary_ : 
-    1. if the email exists in the database, if yes proceed to step 2, if no raise an exception
-    2. generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
-    3. send the code to the email address provided in the request with SES
-
-    Args:
-        email (str): _description_ the email of the user requesting a password reset
-        db (Session, optional): _description_. Defaults to Depends(get_db).
-        user (user_model.User, optional): _description_. Defaults to Depends(auth_util.get_current_user).
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        _type_: _description_ a message in JSON format indicating success with 200
-    """
-    # Logic for sending reset password email goes here
-    email = request.email
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Email not registered")
-
-    code = str(uuid4())[:8]
-    expires_at = datetime.now() + timedelta(minutes=10)
-
-    db.execute(
-        text("INSERT INTO verification_code (email, code, expires_at) VALUES (:email, :code, :expires_at) "
-             "ON CONFLICT (email) DO UPDATE SET code = :code, expires_at = :expires_at"),
-        {"email": email, "code": code, "expires_at": expires_at}
-    )
-    db.commit()
-    # change to the actual send email function 
-    send_verification_email(email, code)
-
-    
-    return {"message": "Password reset request sent successfully"}
-
 
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
