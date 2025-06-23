@@ -9,7 +9,8 @@ from app.config import settings
 from app.database import get_db
 from app.schema.auth_schema import ResetPasswordRequest, VerificationRequest, Token, UserCreateWithCode, UserRegister
 from app.model.users import User
-from app.model.verification_codes import VerificationCodes
+from app.model.verification_codes import VerificationCode
+from app.model.employee_codes import EmployeeCode
 from app.router.dependencies import *
 from app.router.aws_ses import send_verification_email
 from uuid import uuid4
@@ -89,8 +90,8 @@ async def request_email_verification(
     Returns:
         _type_: _description_
     """
-    result = db.query(VerificationCodes).filter(
-        VerificationCodes.email == request.email).first()
+    result = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email).first()
     temp = None
     if result: 
         temp = db.execute(
@@ -105,7 +106,7 @@ async def request_email_verification(
     code = str(uuid4())[:8]
     expires_at = datetime.now() + timedelta(minutes=10)
 
-    entry = VerificationCodes(
+    entry = VerificationCode(
         email=request.email,
         code=code,
         expires_at=expires_at)
@@ -147,8 +148,8 @@ async def request_email_verification(
            detail="Email was not registered. Please register first.",
         )  
     
-    result = db.query(VerificationCodes).filter(
-        VerificationCodes.email == request.email).first()
+    result = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email).first()
     temp = None
     if result: 
         temp = db.execute(
@@ -163,7 +164,7 @@ async def request_email_verification(
     code = str(uuid4())[:8]
     expires_at = datetime.now() + timedelta(minutes=10)
 
-    entry = VerificationCodes(
+    entry = VerificationCode(
         email=request.email,
         code=code,
         expires_at=expires_at)
@@ -226,35 +227,79 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
     return {"message": "Verification code deleted successfully"}
 
 
-@router.post("/register", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
-    code = db.execute(
-        text("SELECT * FROM verification_code WHERE email = :email AND code = :code"),
-        {"email": request.email, "code": request.code}
-    ).fetchone()
+    """_summary_: Register a new user with email verification code.(possibly employee_code)
+    1. check if the email already exists, if so raise an exception
+    2. check the verification code, if not found raise an exception
+    3. if the code is expired raise an exception
+    Args:
+        request (UserCreateWithCode): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
 
-    if not code :
+    Raises:
+        HTTPException: _description_
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # check if the email already exists
+    existing_user = db.query(User).filter(User.email == request.email).first()    
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # check the verification code
+    record = db.query(VerificationCode).filter(
+            VerificationCode.email == request.email,
+            VerificationCode.code == request.code
+        ).first()   
+    if not record :
         raise HTTPException(status_code=400, detail="Verification code is incorrect")
-    if code.expires_at < datetime.now():
+    if record.expires_at < datetime.now():
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+    
+    # if trying to register as an admin or super admin
+    new_user = None
+    if request.employee_code:
+        temp = db.query(EmployeeCode).filter(
+            EmployeeCode.code == request.employee_code).first()
+        if temp.is_super_admin: # super admin
+            new_user = User(
+                user_id = generate_unique_user_id(db),
+                school_id = None,
+                email=request.email,
+                password=get_password_hash(request.password),
+                first_name=request.first_name,
+                last_name=request.last_name,
+                is_super_admin=True
 
-    db.execute(text("DELETE FROM verification_code WHERE email = :email"), {"email": request.email})
-
-    hashed_password = get_password_hash(request.password)
-
-    # always 'stu' for now
-    new_user = User(
-        email=request.email,
-        password=hashed_password,
-        first_name=request.first_name,
-        last_name=request.last_name,
-        role="stu",
-        school_id=None  # If you later implement school check you can fill this
-    )
+            )
+            
+        if not temp.is_super_admin: # school admin
+            new_user = User(
+                user_id = generate_unique_user_id(db),
+                email=request.email,
+                school_id=request.school_id,
+                password=get_password_hash(request.password),
+                first_name=request.first_name,
+                last_name=request.last_name,
+                is_admin=True
+            )
+    
+        else: # student
+            new_user = User(
+                user_id = generate_unique_user_id(db),
+                school_id = request.school_id,
+                email=request.email,
+                password=get_password_hash(request.password),
+                first_name=request.first_name,
+                last_name=request.last_name,
+            )
     db.add(new_user)
+    db.delete(record)
     db.commit()
     db.refresh(new_user)
-
     return {"message": "User registered successfully"}
 
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
@@ -271,9 +316,9 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     """
     # Logic for resetting password goes here
 
-    record = db.query(VerificationCodes).filter(
-        VerificationCodes.email == request.email,
-        VerificationCodes.code == request.code
+    record = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email,
+        VerificationCode.code == request.code
     ).first()
 
     if not record:
