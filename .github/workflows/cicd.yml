@@ -6,9 +6,6 @@ on:
   push:
     branches:
       - prod
-  pull_request:
-    branches:
-      - prod
 
 jobs:
     build-docker-image-to-aws-ecr: 
