@@ -3,11 +3,9 @@ from typing import Union
 
 from app.router import (
     auth_router, 
+    users_router
 )
-from app.config import settings, Settings
-import asyncio
-from app.background_task import cleanup_verification_codes
-from contextlib import asynccontextmanager
+from app.config import settings
 
 
 # start the FastAPI application with 
@@ -15,23 +13,7 @@ from contextlib import asynccontextmanager
 app = FastAPI(title="Kira", version="0.0.1") 
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     # Startup code here
-#     cleanup_task = asyncio.create_task(cleanup_verification_codes())
-#     try:
-#         yield
-#     finally:
-#         # Shutdown code here - cancel cleanup task gracefully
-#         cleanup_task.cancel()
-#         try:
-#             await cleanup_task
-#         except asyncio.CancelledError:
-#             pass
-# 
-# app.router.lifespan_context = lifespan
-
+app.include_router(users_router, prefix="/users", tags=["Users"])
 #####################
 ### test endpoint ###
 #####################
