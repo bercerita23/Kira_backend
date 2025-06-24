@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class Token(BaseModel):
@@ -21,3 +21,25 @@ class UserRegister(BaseModel):
     password: str
     first_name: str
     last_name: Optional[str] = None
+
+class VerificationRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+
+class UserCreateWithCode(BaseModel):
+    employee_code:Optional[str] = None
+    school_id: Optional[str] = None
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+
+class LoginRequest(BaseModel):
+    user_id: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: str

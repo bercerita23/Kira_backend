@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_EMAIL: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
 
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_DEFAULT_REGION: str
+
 
 # class ContainerDevSettings(Settings):
 #     model_config = SettingsConfigDict(
@@ -94,4 +98,4 @@ def get_settings(env: str = "dev") -> Settings:
 
 
 _env = os.environ.get("ENV", "local")
-settings = get_settings(env=_env)
+settings = get_settings(env='prod')
