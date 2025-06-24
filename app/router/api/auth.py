@@ -18,6 +18,60 @@ from uuid import uuid4
 
 router = APIRouter()
 
+# temp fix now
+@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Flexible login: accepts user_id and/or email along with password.
+    """
+
+    user = None
+
+    # Try to fetch user based on provided identifiers
+    if request.user_id:
+        user = db.query(User).filter(User.user_id  == request.user_id).first()
+    elif request.email:
+        user = db.query(User).filter(User.email == request.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not found"
+        )
+
+    # Verify password
+    if not verify_password(request.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect credentials"
+        )
+
+   
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Token creation based on role
+    role = None
+    if user.is_super_admin:
+        role = "super_admin"
+    elif user.is_admin:
+        role = "admin"
+    elif (not user.is_super_admin) and (not user.is_admin):
+        role = "student"
+
+    
+
+    access_token = create_access_token(
+        subject=user.user_id,
+        email=user.email,
+        first_name=user.first_name,
+        role=role,
+        school_id=user.school_id,
+        expires_delta=access_token_expires
+    )
+    user.last_login_time = datetime.now()
+    db.commit()
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
 
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
