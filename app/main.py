@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from typing import Union
+
 from app.router import (
     auth_router, 
+    users_router
 )
-from app.config import settings, Settings
+from app.config import settings
 
 
 # start the FastAPI application with 
@@ -11,7 +13,7 @@ from app.config import settings, Settings
 app = FastAPI(title="Kira", version="0.0.1") 
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-
+app.include_router(users_router, prefix="/users", tags=["Users"])
 #####################
 ### test endpoint ###
 #####################
