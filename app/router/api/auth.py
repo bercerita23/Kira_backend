@@ -157,8 +157,6 @@ async def request_email_verification(
         {"email": request.email}
     )
     db.commit()
-    if temp.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
     
     # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
     code = str(uuid4())[:8]
@@ -225,8 +223,7 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
         {"email": email}
     )
     db.commit()
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Verification code not found, please try again!")
+    
     return {"message": "Verification code deleted successfully"}
 
 
