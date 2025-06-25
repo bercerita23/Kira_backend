@@ -105,5 +105,3 @@ def send_verification_email(email: str,
         )
     except ClientError as e:
         print(e.response['Error']['Message'])
-
-send_verification_email("seankh4444@gmail.com", "signup", "BIGUU", "000000000000", "88888888", "Sean")
