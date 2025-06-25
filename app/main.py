@@ -3,17 +3,20 @@ from typing import Union
 
 from app.router import (
     auth_router, 
-    users_router
+    users_router, 
+    super_admin_router, 
+    admin_router
 )
 from app.config import settings
 
 
-# start the FastAPI application with 
-# fastapi dev main.py
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.API_VERSION) 
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(users_router, prefix="/users", tags=["User"])
+app.include_router(super_admin_router, prefix="/sa", tags=["Super Admin"])
+app.include_router(admin_router, prefix="/a", tags=["Admin"])
+
 #####################
 ### test endpoint ###
 #####################

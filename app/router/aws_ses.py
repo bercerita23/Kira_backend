@@ -8,8 +8,17 @@ CONFIGURATION_SET = "ConfigSet"
 AWS_REGION = "us-east-2"
 SUBJECT = "BERCERITA KIRA - Account Verification Code"
 CHARSET = "UTF-8"
+                    
 
-def send_verification_email(email: str, code: str):
+
+def send_verification_email(email: str, 
+                            frontend_route: str, 
+                            code: str, 
+                            user_id: str, 
+                            school_id: str,
+                            first_name: str):
+    #verification_link = f"https://main.d3hzyon2wqrdca.amplifyapp.com/signup/?code={code}"
+    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&user_id={user_id}&school_id={school_id}&first_name={first_name}"
     body_html = f"""\
 <html>
   <head>
@@ -29,7 +38,7 @@ def send_verification_email(email: str, code: str):
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
       }}
       .code {{
-        font-size: 24px;
+        font-size: 20px;
         font-weight: bold;
         background-color: #f1f1f1;
         padding: 12px 20px;
@@ -52,8 +61,16 @@ def send_verification_email(email: str, code: str):
   <body>
     <div class="container">
       <h1>Welcome to Bercerita KIRA</h1>
+      <p>Click the button below to verify your account:</p>
+      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Verify Account</a>
+      <p>If the link does not work, you can copy and paste the following URL into your browser:</p>
+      <p><a href="{verification_link}">{verification_link}</a></p>
       <p>Your verification code is:</p>
       <div class="code">{code}</div>
+      <p>Email: {email}</p>
+      <p>User ID: {user_id}</p>
+      <p>School ID: {school_id}</p>
+      <p>First Name: {first_name}</p>
       <p>This code will expire in 10 minutes. Please enter it promptly to complete your verification.</p>
 
       <div class="footer">
@@ -64,8 +81,6 @@ def send_verification_email(email: str, code: str):
   </body>
 </html>
 """
-
-
     try:
         client = boto3.client('ses', region_name=AWS_REGION,
                                aws_access_key_id=settings.AWS_ACCESS_KEY_ID, 
@@ -90,3 +105,5 @@ def send_verification_email(email: str, code: str):
         )
     except ClientError as e:
         print(e.response['Error']['Message'])
+
+send_verification_email("seankh4444@gmail.com", "signup", "BIGUU", "000000000000", "88888888", "Sean")

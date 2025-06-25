@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.auth_util import *
 from app.config import settings
 from app.database import get_db
-from app.schema.auth_schema import LoginRequest, ResetPasswordRequest, VerificationRequest, Token, UserCreateWithCode, UserRegister
+from app.schema.auth_schema import LoginRequest, ResetPasswordRequest, Invitation, Token, UserCreate, UserRegister
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
 from app.model.employee_codes import EmployeeCode
@@ -18,67 +18,22 @@ from uuid import uuid4
 
 router = APIRouter()
 
-# temp fix now
-@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """
-    Flexible login: accepts user_id and/or email along with password.
-    """
-
-    user = None
-
-    # Try to fetch user based on provided identifiers
-    if request.user_id:
-        user = db.query(User).filter(User.user_id  == request.user_id).first()
-    elif request.email:
-        user = db.query(User).filter(User.email == request.email).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User not found"
-        )
-
-    # Verify password
-    if not verify_password(request.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect credentials"
-        )
-
-   
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    # Token creation based on role
-    role = None
-    if user.is_super_admin:
-        role = "super_admin"
-    elif user.is_admin:
-        role = "admin"
-    elif (not user.is_super_admin) and (not user.is_admin):
-        role = "student"
-
-    
-
-    access_token = create_access_token(
-        subject=user.user_id,
-        email=user.email,
-        first_name=user.first_name,
-        role=role,
-        school_id=user.school_id,
-        expires_delta=access_token_expires
-    )
-    user.last_login_time = datetime.now()
-    db.commit()
-    
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """
-    Flexible login: accepts user_id and/or email along with password.
-    """
+    """_summary_
 
+    Args:
+        request (LoginRequest): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+        HTTPException: _description_
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     user = None
 
     # Try to fetch user based on provided identifiers
@@ -118,8 +73,19 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/login-ada", response_model=Token, status_code=status.HTTP_200_OK)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """
-    Flexible login: accepts user_id and/or email along with password.
+    """_summary_
+
+    Args:
+        request (LoginRequest): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_
+        HTTPException: _description_
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
     """
 
     user = None
@@ -135,6 +101,12 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User not found"
         )
+    
+    if not user.is_admin and not user.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You're a student, you don't have admin accesss"
+        )
 
     # Verify password
     if not verify_password(request.password, user.hashed_password):
@@ -143,23 +115,23 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             detail="Incorrect credentials"
         )
 
-   
+    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     # Token creation based on role
     role = None
+    school_id = None
     if user.is_super_admin:
         role = "super_admin"
     else:
         role = "admin"
-
+        school_id = user.school_id
     
-
     access_token = create_access_token(
         subject=user.user_id,
         email=user.email,
         first_name=user.first_name,
         role=role,
-        school_id=user.school_id,
+        school_id=school_id,
         expires_delta=access_token_expires
     )
     user.last_login_time = datetime.now()
@@ -169,16 +141,18 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 
 
-@router.post("/request-email-register", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/invite", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_email_verification(
-    request: VerificationRequest, db: Session = Depends(get_db)
+    request: Invitation, db: Session = Depends(get_db) #TODO: add a dependency to get super admin user)
 ) -> Dict[str, Any]:
-    """_summary_: Frontend will call this endpoint to request a verification code for email verification. 
-    1. Generate an 8-digit code and store it in the database with email & expiration time of 10 minutes.
-    2. Send the code to the email address provided in the request with SES.
+    """_summary_: Super admin will call this endpoint to sned an invitation email to a new school admin to register. 
+    1. If the email exists in the DB, raise an exception. 
+    2. Generate a verification code and store it in the database
+    3. Temporarily store the user information in the users table to compare later
+    4. Send the code to the email address provided in the request with SES.
 
     Args:
-        email (EmailRequest): _description_
+        request (Invitation): _description_
         db (Session, optional): _description_. Defaults to Depends(get_db).
 
     Raises:
@@ -187,87 +161,109 @@ async def request_email_verification(
     Returns:
         _type_: _description_
     """
+    # step 1: Check if the email already exists in the database
+    user = db.query(User).filter(User.email == request.email).first()
+    if user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered. Please use a different email.",
+        )
+
+    # step 2: generate a verification code and store it in the database
     result = db.query(VerificationCode).filter(
         VerificationCode.email == request.email).first()
-    
     if result: 
         temp = db.execute(
         text("DELETE FROM verification_codes WHERE email = :email"),
         {"email": request.email}
     )
     db.commit()
-    
-    # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
+    # generate a 8 digit code and store it in the database with email & expiration time of 180 minutes
     code = str(uuid4())[:8]
-    expires_at = datetime.now() + timedelta(minutes=20)
-
+    expires_at = datetime.now() + timedelta(minutes=180)
     entry = VerificationCode(
         email=request.email,
         code=code,
         expires_at=expires_at)
-    
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    
-    send_verification_email(request.email, code)
-    return {"message": f"Verification code was sent to {request.email}"}
 
-
-@router.post("/request-email-pw-reset", response_model=dict, status_code=status.HTTP_200_OK)
-async def request_email_verification(
-    request: VerificationRequest, db: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """_summary_: Frontend will call this endpoint to request a verification code for email verification. 
-    1. If the email exists in the database, proceed to step 2, if not raise an exception.
-    2. Generate an 8-digit code and store it in the database with email & expiration time of 10 minutes.
-    3. Send the code to the email address provided in the request with SES.
-
-    Args:
-        email (EmailRequest): _description_
-        db (Session, optional): _description_. Defaults to Depends(get_db).
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        _type_: _description_
-    """
-    # fetch user by email
-    user = db.query(User).filter(
-        User.email == request.email).first()
-    # if user is not found or password is incorrect, raise an exception
-    if not user:
-        raise HTTPException(
-           status_code=status.HTTP_400_BAD_REQUEST,
-           detail="Email was not registered. Please register first.",
-        )  
-    
-    result = db.query(VerificationCode).filter(
-        VerificationCode.email == request.email).first()
-    temp = None
-    if result: 
-        temp = db.execute(
-        text("DELETE FROM verification_code WHERE email = :email"),
-        {"email": request.email}
+    # step 3: Temporarily store the user information in the users table to compare later
+    temp_user = User(
+        user_id=generate_unique_user_id(db),
+        school_id=request.school_id,
+        email=request.email,
+        first_name=request.first_name,
+        last_name=request.last_name,
+        hashed_password="",
+        is_admin=True,  
     )
+    db.add(temp_user)
     db.commit()
+    db.refresh(temp_user)
     
-    # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
-    code = str(uuid4())[:8]
-    expires_at = datetime.now() + timedelta(minutes=10)
-
-    entry = VerificationCode(
-        email=request.email,
-        code=code,
-        expires_at=expires_at)
-    
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
-    
-    send_verification_email(request.email, code)
+    send_verification_email(temp_user.email, "signup", code, 
+                            temp_user.user_id,
+                            temp_user.school_id,
+                            temp_user.first_name)
     return {"message": f"Verification code was sent to {request.email}"}
+
+
+# @router.post("/request-email-pw-reset", response_model=dict, status_code=status.HTTP_200_OK)
+# async def request_email_verification(
+#     request: VerificationRequest, db: Session = Depends(get_db)
+# ) -> Dict[str, Any]:
+#     """_summary_: Frontend will call this endpoint to request a verification code for email verification. 
+#     1. If the email exists in the database, proceed to step 2, if not raise an exception.
+#     2. Generate an 8-digit code and store it in the database with email & expiration time of 10 minutes.
+#     3. Send the code to the email address provided in the request with SES.
+# 
+#     Args:
+#         email (EmailRequest): _description_
+#         db (Session, optional): _description_. Defaults to Depends(get_db).
+# 
+#     Raises:
+#         HTTPException: _description_
+# 
+#     Returns:
+#         _type_: _description_
+#     """
+#     # fetch user by email
+#     user = db.query(User).filter(
+#         User.email == request.email).first()
+#     # if user is not found or password is incorrect, raise an exception
+#     if not user:
+#         raise HTTPException(
+#            status_code=status.HTTP_400_BAD_REQUEST,
+#            detail="Email was not registered. Please register first.",
+#         )  
+#     
+#     result = db.query(VerificationCode).filter(
+#         VerificationCode.email == request.email).first()
+#     temp = None
+#     if result: 
+#         temp = db.execute(
+#         text("DELETE FROM verification_code WHERE email = :email"),
+#         {"email": request.email}
+#     )
+#     db.commit()
+#     
+#     # generate a 8 digit code and store it in the database with email & expiration time of 10 minutes
+#     code = str(uuid4())[:8]
+#     expires_at = datetime.now() + timedelta(minutes=10)
+# 
+#     entry = VerificationCode(
+#         email=request.email,
+#         code=code,
+#         expires_at=expires_at)
+#     
+#     db.add(entry)
+#     db.commit()
+#     db.refresh(entry)
+#     
+#     send_verification_email(request.email, "forgot-password", code)
+#     return {"message": f"Verification code was sent to {request.email}"}
     
 
 @router.get("/code", response_model=dict, status_code=status.HTTP_200_OK)
@@ -323,7 +319,7 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
 
 
 @router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
+async def register(request: UserCreate, db: Session = Depends(get_db)):
     """_summary_: Register a new user with email verification code.(possibly employee_code)
     1. check if the email already exists, if so raise an exception
     2. check the verification code, if not found raise an exception if the code is expired raise an exception
@@ -388,7 +384,7 @@ async def register(request: UserCreateWithCode, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return {"message": "User registered successfully"}
 
-@router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
+@router.put("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     """_summary_ : 
     1. if the email and the verification code match, proceed to step 2, if not raise an exception

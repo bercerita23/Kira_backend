@@ -22,15 +22,19 @@ class UserRegister(BaseModel):
     first_name: str
     last_name: Optional[str] = None
 
-class VerificationRequest(BaseModel):
+class Invitation(BaseModel):
+    school_id: str
     email: EmailStr
+    first_name: str
+    last_name: str
+
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
     new_password: str
 
 
-class UserCreateWithCode(BaseModel):
+class UserCreate(BaseModel):
     employee_code:Optional[str] = None
     school_id: Optional[str] = None
     email: EmailStr

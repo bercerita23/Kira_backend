@@ -69,7 +69,7 @@ def get_current_user(
     Raises:
         HTTPException: If the user is not found in the database.
     """
-    user = db.query(User).filter(User.id == token.sub).first() 
+    user = db.query(User).filter(User.user_id == token.sub).first() 
     if user is None:
         raise Exception(
             status_code=status.HTTP_404_NOT_FOUND, details="User not found"
@@ -77,8 +77,7 @@ def get_current_user(
     return user
 
 
-
-def get_current_superuser(
+def get_current_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
     """Returns the current superuser.
@@ -93,7 +92,29 @@ def get_current_superuser(
         HTTPException: If the current user is not a super user.
 
     """
-    if not current_user.role: # Currently it's 'stu' or 'adm' but it will be changed to boolean in the future
+    if not current_user.is_admin:
+        raise Exception(
+            status_code=status.HTTP_403_FORBIDDEN,
+            details="This user isn't an admin.",
+        )
+    return current_user
+
+def get_current_super_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Returns the current superuser.
+
+    Parameters:
+        current_user (User, optional): The current user.
+
+    Returns:
+        User: The current superuser.
+
+    Raises:
+        HTTPException: If the current user is not a super user.
+
+    """
+    if not current_user.is_super_admin: 
         raise Exception(
             status_code=status.HTTP_403_FORBIDDEN,
             details="This user isn't an admin.",
