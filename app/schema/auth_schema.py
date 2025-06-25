@@ -35,8 +35,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 class UserCreate(BaseModel):
-    employee_code:Optional[str] = None
-    school_id: Optional[str] = None
+    school_id: str
     email: EmailStr
     password: str
     first_name: str
