@@ -33,7 +33,7 @@ async def get_verification_code(email: str = Query(...), db: Session = Depends(g
     
     return {"email": result.email,"code": result.code,"expires_at": result.expires_at.isoformat()}
 
-@router.delete("/", response_model=dict,status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
     """_summary_
 
@@ -55,4 +55,4 @@ async def delete_verification_code(email: str = Query(...), db: Session = Depend
     )
     db.commit()
     
-    return {"message": "Verification code deleted successfully"}
+    return

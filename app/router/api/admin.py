@@ -26,7 +26,7 @@ async def create_student(student: StudentCreate, db: Session = Depends(get_db), 
     db.refresh(new_student)
     return {"message": "Student created successfully", "user_id": new_student.user_id}
 
-@router.get("/students", response_model=list[User], status_code=status.HTTP_200_OK)
+@router.get("/students", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)): 
     """_summary_: 
     This router will only be called by the admin or super admin to get all students in their school
@@ -34,7 +34,7 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
         _type_: _description_ a list of students in JSON format with 200
     """
     students = db.query(User).filter(User.school_id == admin.school_id).all()
-    return students
+    return {"students": students}
 
 
 
