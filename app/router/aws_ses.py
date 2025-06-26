@@ -107,8 +107,8 @@ def send_verification_email(email: str,
         print(e.response['Error']['Message'])
 
 
-def send_admin_email(frontend_route: str, email: str, code: str, user_id: str, school_id: str, first_name: str):
-    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&user_id={user_id}&school_id={school_id}&first_name={first_name}"
+def send_admin_email(email: str, frontend_route: str, code: str, user_id: str, school_id: str, first_name: str, last_name: str):
+    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&user_id={user_id}&school_id={school_id}&first_name={first_name}&last_name={last_name}"
     body_html = f"""\
 <html>
   <head>

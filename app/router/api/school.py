@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_school_id(db: Session = Depends(get_db)):
+async def get_all_school(db: Session = Depends(get_db)):
     
     temp = db.query(School).all()
     res = [{"school_id": school.school_id, "name": school.name, "email": school.email, "address": school.address, "telephone": school.telephone} for school in temp]
