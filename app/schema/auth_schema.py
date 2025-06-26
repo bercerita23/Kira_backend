@@ -28,11 +28,14 @@ class Invitation(BaseModel):
     first_name: str
     last_name: str
 
+class ResetPasswordRequest(BaseModel): 
+    user_id: Optional[str]
+    email: Optional[EmailStr]
 
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-    new_password: str
 
+# class ResetPasswordRequest(BaseModel):
+#     email: EmailStr
+#     new_password: str
 
 class UserCreate(BaseModel):
     school_id: str

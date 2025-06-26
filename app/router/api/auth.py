@@ -12,7 +12,7 @@ from app.model.users import User
 from app.model.verification_codes import VerificationCode
 from app.model.employee_codes import EmployeeCode
 from app.router.dependencies import *
-from app.router.aws_ses import send_verification_email
+from app.router.aws_ses import *
 from uuid import uuid4
 
 
@@ -236,9 +236,6 @@ async def check_user_info(email: str = Query(...), db: Session = Depends(get_db)
             "school_id": user.school_id,
             "user_id": user.user_id}
 
-
-    
-
 @router.get("/code", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_verification_code(email: str = Query(...), db: Session = Depends(get_db)):
     """_summary_
@@ -326,9 +323,15 @@ async def register(request: UserCreate, db: Session = Depends(get_db)):
     
 
 @router.post("/request-reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-async def request_reset_password(email: str, db: Session = Depends(get_db)):
-    """_summary_: this router will be called by the student to request a password reset and email will be sent 
-    to the school admin's email that the student is associated with. 
+async def request_reset_password(request_body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """_summary_: this router will be called by the student or the admin to send a reset password email to the admin. 
+    1. check who's sending the request by checking the content of the request.
+    1.1. if it's an email -> an admin is trying to send the request 
+    1.2. if it's an user_id -> a student is trying to send the request 
+
+    2. ADMIN: 
+
+    3. STUDENT: 
 
     Args:
         email (str): _description_
@@ -340,27 +343,68 @@ async def request_reset_password(email: str, db: Session = Depends(get_db)):
     Returns:
         _type_: _description_
     """
+
+    if request_body.email: # Admin is trying to reset password
+        user = db.query(User).filter(User.email == request_body.email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        code = str(uuid4())[:8]
+        expires_at = datetime.now() + timedelta(minutes=180)
+        
+        reset_code_entry = VerificationCode(
+            email=user.email,
+            code=code,
+            expires_at=expires_at
+        )
+        db.add(reset_code_entry)
+        db.commit()
+        
+        # Send the reset password email
+        send_verification_email(user.email, "reset-password", code, 
+                                user.user_id, user.school_id, user.first_name)
+        
+        return {"message": f"Reset password email sent to {user.email}"}
+    
+    else: # Student is trying to reset password
+        student = db.query(User).filter(User.user_id == request_body.user_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="User not found")   
+        
+        admin = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).first()
+        code = str(uuid4())[:8]
+        expires_at = datetime.now() + timedelta(minutes=180)
+        
+        db.add(reset_code_entry)
+        db.commit()
+        
+    
+        send_reset_request_to_admin(admin.email, "reset-password", code, 
+                                student.user_id, student.school_id, student.first_name)
+        
+        return {"message": f"Reset password email sent to {user.email}"}
+        
     
 
-@router.put("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """_summary_ : 
-    This router will only be called by the admin or super admin to reset the password for themselves 
-    or for a student
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        _type_: _description_ a message in JSON format indicating success with 200
-    """
-
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    hashed_password = get_password_hash(request.new_password)
-    user.hashed_password = hashed_password 
-
-
-    db.commit()
-
-    return {"message": "Password reset successfully"}
+# @router.put("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
+# async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+#     """_summary_ : 
+#     This router will only be called by the admin or super admin to reset the password for themselves 
+#     or for a student
+#     Raises:
+#         HTTPException: _description_
+# 
+#     Returns:
+#         _type_: _description_ a message in JSON format indicating success with 200
+#     """
+# 
+#     user = db.query(User).filter(User.email == request.email).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     hashed_password = get_password_hash(request.new_password)
+#     user.hashed_password = hashed_password 
+# 
+# 
+#     db.commit()
+# 
+#     return {"message": "Password reset successfully"}
