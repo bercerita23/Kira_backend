@@ -38,11 +38,8 @@ class ResetPasswordRequest(BaseModel):
 #     new_password: str
 
 class UserCreate(BaseModel):
-    school_id: str
     email: EmailStr
     password: str
-    first_name: str
-    last_name: str
 
 class LoginRequest(BaseModel):
     user_id: Optional[str] = None

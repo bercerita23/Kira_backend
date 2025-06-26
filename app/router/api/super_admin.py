@@ -75,7 +75,7 @@ async def invite(
     db.commit()
     db.refresh(temp_user)
     
-    send_admin_email(temp_user.email, "signup", code, 
+    send_admin_invite_email(temp_user.email, "signup", code, 
                             temp_user.user_id,
                             temp_user.school_id,
                             temp_user.first_name, 

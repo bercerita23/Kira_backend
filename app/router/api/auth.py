@@ -306,10 +306,7 @@ async def register(request: UserCreate, db: Session = Depends(get_db)):
 
     if existing_user:
         # Update existing user
-        existing_user.first_name = request.first_name
-        existing_user.last_name = request.last_name
         existing_user.hashed_password = get_password_hash(request.password)
-        existing_user.school_id = request.school_id
         db.commit()
         db.refresh(existing_user)
         return {"message": "User information updated successfully"}
@@ -355,9 +352,8 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         db.add(reset_code_entry)
         db.commit()
         
-        # Send the reset password email
-        send_verification_email(user.email, "reset-password", code, 
-                                user.user_id, user.school_id, user.first_name)
+        # send the reset password email to the admin
+        send_admin_verification_email(user.email, "reset-password", code, user.first_name)
         
         return {"message": f"Reset password email sent to {user.email}"}
     
@@ -367,16 +363,11 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
             raise HTTPException(status_code=404, detail="User not found")   
         
         admin = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).first()
-        code = str(uuid4())[:8]
-        expires_at = datetime.now() + timedelta(minutes=180)
-        
-        db.add(reset_code_entry)
-        db.commit()
-        
-    
-        send_reset_request_to_admin(admin.email, "reset-password", code, 
+        # send the reset password request to the admin's email
+        send_reset_request_to_admin(admin.email, "admin/login", code, 
                                 student.user_id, student.school_id, student.first_name)
         
+
         return {"message": f"Reset password email sent to {admin.email}"}
         
     
