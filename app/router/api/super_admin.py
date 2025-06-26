@@ -5,7 +5,7 @@ from app.database import get_db
 from datetime import datetime
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
-from app.schema.auth_schema import Invitation
+from app.schema.super_admin_schema import Invitation
 from typing import Any, Dict
 from app.router.aws_ses import *
 from app.router.auth_util import *

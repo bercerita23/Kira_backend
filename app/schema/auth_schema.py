@@ -22,20 +22,9 @@ class UserRegister(BaseModel):
     first_name: str
     last_name: Optional[str] = None
 
-class Invitation(BaseModel):
-    school_id: str
-    email: EmailStr
-    first_name: str
-    last_name: str
-
 class ResetPasswordRequest(BaseModel): 
     user_id: Optional[str]
     email: Optional[EmailStr]
-
-
-# class ResetPasswordRequest(BaseModel):
-#     email: EmailStr
-#     new_password: str
 
 class UserCreate(BaseModel):
     email: EmailStr

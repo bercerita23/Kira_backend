@@ -13,7 +13,7 @@ def get_all_users(db: Session = Depends(get_db)):
 
 @router.get("/user-temp", response_model=dict, status_code=status.HTTP_200_OK)
 async def check_user_info(email: str = Query(...), db: Session = Depends(get_db)):
-    """_summary_ fetch the information that was entered by the admin when inviting a new school admin.
+    """_summary_ fetch the information that was entered by the admin when inviting a new school admin for the frontend to do the conparision. 
 
     Args:
         email (str, optional): _description_. Defaults to Query(...).
