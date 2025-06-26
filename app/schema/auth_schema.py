@@ -23,8 +23,8 @@ class UserRegister(BaseModel):
     last_name: Optional[str] = None
 
 class ResetPasswordRequest(BaseModel): 
-    user_id: Optional[str]
-    email: Optional[EmailStr]
+    user_id: Optional[str] = None
+    email: Optional[EmailStr] = None
 
 class UserCreate(BaseModel):
     email: EmailStr
