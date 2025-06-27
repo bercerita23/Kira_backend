@@ -11,7 +11,7 @@ from uuid import uuid4
 router = APIRouter()
 
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def create_student(student: StudentCreate, db: Session = Depends(get_db)): 
+async def create_student(student: StudentCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)): 
     new_student = User(
         user_id=generate_unique_user_id(), 
         email=student.email,
@@ -27,7 +27,7 @@ async def create_student(student: StudentCreate, db: Session = Depends(get_db)):
     return {"message": "Student created successfully", "user_id": new_student.user_id}
 
 @router.get("/students", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_students(db: Session = Depends(get_db)): 
+async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)): 
     """_summary_: 
     This router will only be called by the admin or super admin to get all students in their school
     Returns:
