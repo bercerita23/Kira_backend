@@ -15,7 +15,6 @@ async def create_student(student: StudentCreate, db: Session = Depends(get_db), 
 
     new_student = User(
         user_id=generate_unique_user_id(db), 
-        email=student.email,
         hashed_password=get_password_hash(student.password),
         first_name=student.first_name,
         last_name=student.last_name,

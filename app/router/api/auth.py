@@ -215,14 +215,16 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         if not student:
             raise HTTPException(status_code=404, detail="User not found")   
         
-        admins = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).all()
+        res = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).all()
         # send the reset password request to the admin's email
-        for admin in admins: 
-            send_reset_request_to_admin(admin.email, "admin/login", code, 
+        admin_emails = [r.email for r in res]
+        for email in admin_emails: 
+            print(email)
+            send_reset_request_to_admin( "admin/login", email,
                                     student.user_id, student.school_id, student.first_name)
         
 
-        return {"message": f"Reset password email sent to {admin.email}"}
+        return {"message": f"Reset password email sent"}
         
     
 # TODO: put the separated routes here
