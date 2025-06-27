@@ -3,20 +3,27 @@ from typing import Union
 
 from app.router import (
     auth_router, 
-    users_router
+    users_router, 
+    super_admin_router, 
+    admin_router,
+    school_router,
+    code_router
 )
 from app.config import settings
 
 
-# start the FastAPI application with 
-# fastapi dev main.py
-app = FastAPI(title="Kira", version="0.0.1") 
+app = FastAPI(title=settings.PROJECT_NAME, version=settings.API_VERSION) 
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-app.include_router(users_router, prefix="/users", tags=["Users"])
+app.include_router(users_router, prefix="/users", tags=["User"])
+app.include_router(super_admin_router, prefix="/super_admin", tags=["Super Admin"])
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+app.include_router(school_router, prefix="/school", tags=["School"])   
+app.include_router(code_router, prefix="/code", tags=["Code"]) 
+
 #####################
-### test endpoint ###
+### Root Endpoint ###
 #####################
 @app.get("/")
 def read_root():
-    return {"Hello From: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': '01'}
+    return {"KIRA: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': settings.API_VERSION}

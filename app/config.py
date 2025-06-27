@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_DEFAULT_REGION: str
 
+    FRONTEND_URL: str
 
 # class ContainerDevSettings(Settings):
 #     model_config = SettingsConfigDict(

@@ -19,12 +19,10 @@ def get_db() -> Generator:  # pragma: no cover
         Exception: If an error occurs while getting the database session.
     """
 
-    log.debug("getting database session")
     db = get_local_session(SQLALCHEMY_DATABASE_URL, False)()
     try:
         yield db
     finally:  # pragma: no cover
-        log.debug("closing database session")
         db.close()  # pragma: no cover
 
 
@@ -44,7 +42,6 @@ def get_ctx_db(database_url: str) -> Generator:
         Exception: If an error occurs while getting the database session.
 
     """
-    log.debug("getting database session")
     db = get_local_session(database_url)()
     try:
         yield db
@@ -52,5 +49,4 @@ def get_ctx_db(database_url: str) -> Generator:
         log.error("An error occurred while getting the database session. Error: %s", e)
         
     finally:
-        log.debug("closing database session")
         db.close()

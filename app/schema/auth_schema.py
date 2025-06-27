@@ -22,22 +22,13 @@ class UserRegister(BaseModel):
     first_name: str
     last_name: Optional[str] = None
 
-class VerificationRequest(BaseModel):
-    email: EmailStr
+class ResetPasswordRequest(BaseModel): 
+    user_id: Optional[str] = None
+    email: Optional[EmailStr] = None
 
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-    code: str
-    new_password: str
-
-
-class UserCreateWithCode(BaseModel):
-    employee_code:Optional[str] = None
-    school_id: Optional[str] = None
+class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    first_name: str
-    last_name: str
 
 class LoginRequest(BaseModel):
     user_id: Optional[str] = None
