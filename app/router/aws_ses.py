@@ -14,11 +14,9 @@ CHARSET = "UTF-8"
 def send_admin_verification_email(email: str, 
                             frontend_route: str, 
                             code: str, 
-                            user_id: str, 
-                            school_id: str,
                             first_name: str):
     #verification_link = f"https://main.d3hzyon2wqrdca.amplifyapp.com/signup/?code={code}"
-    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&user_id={user_id}&school_id={school_id}&first_name={first_name}"
+    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&first_name={first_name}"
     body_html = f"""\
 <html>
   <head>

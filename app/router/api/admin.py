@@ -38,7 +38,7 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
 
 
 
-@router.put("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
+@router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def reset_password(request: PasswordReset, db: Session = Depends(get_db)):
     """_summary_ : 
     This router will only be called by the admin or super admin to reset the password for themselves 

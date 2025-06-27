@@ -206,7 +206,7 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         db.commit()
         
         # send the reset password email to the admin
-        send_admin_verification_email(user.email, "forgot-password", code, user.first_name)
+        send_admin_verification_email(user.email, "forgot-password/reset", code, user.first_name)
         
         return {"message": f"Reset password email sent to {user.email}"}
     
