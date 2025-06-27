@@ -215,10 +215,11 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         if not student:
             raise HTTPException(status_code=404, detail="User not found")   
         
-        admin = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).first()
+        admins = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).all()
         # send the reset password request to the admin's email
-        send_reset_request_to_admin(admin.email, "admin/login", code, 
-                                student.user_id, student.school_id, student.first_name)
+        for admin in admins: 
+            send_reset_request_to_admin(admin.email, "admin/login", code, 
+                                    student.user_id, student.school_id, student.first_name)
         
 
         return {"message": f"Reset password email sent to {admin.email}"}
