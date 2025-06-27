@@ -191,7 +191,7 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
         print(e.response['Error']['Message'])
     
 def send_reset_request_to_admin(frontend_route: str, email: str, user_id: str, school_id: str, first_name: str):
-  verification_link = f"{settings.FRONTEND_URL}/{frontend_route}"
+  verification_link = f"{settings.FRONTEND_URL}/{frontend_route}?email={email}"
   body_html = f"""\
 <html>
   <head>
