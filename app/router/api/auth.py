@@ -224,3 +224,8 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         return {"message": f"Reset password email sent to {admin.email}"}
         
     
+# TODO: put the separated routes here
+@router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
+async def reset_admin_password(db: Session = Depends(get_db)): 
+
+    pass
