@@ -144,7 +144,7 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
     <div class="container">
       <h1>Welcome to Bercerita KIRA</h1>
       <p>Click the button below to register as a Kira admin:</p>
-      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Verify Account</a>
+      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Regiser with Kira</a>
       <p>If the link does not work, you can copy and paste the following URL into your browser:</p>
       <p><a href="{verification_link}">{verification_link}</a></p>
       <p>If the data is not copied to the page, please use the following information:</p>
@@ -235,7 +235,7 @@ def send_reset_request_to_admin(frontend_route: str, email: str, user_id: str, s
     <div class="container">
       <h1>Bercerita KIRA</h1>
       <p>Student {first_name} with school ID <strong>{school_id}</strong> and user ID <strong>{user_id}</strong> has requested a password reset.</p>
-      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Verify Account</a>
+      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Login</a>
       <p>If the link does not work, you can copy and paste the following URL into your browser:</p>
       <p><a href="{verification_link}">{verification_link}</a></p>
       <p>This code will expire in 10 minutes. Please enter it promptly to complete your verification.</p>
