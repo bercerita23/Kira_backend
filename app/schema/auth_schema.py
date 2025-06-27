@@ -13,7 +13,7 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     """Payload for Bearer Access Token"""
 
-    sub: Optional[int] = None
+    sub: Optional[str] = None
 
 
 class UserRegister(BaseModel):

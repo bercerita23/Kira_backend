@@ -12,13 +12,13 @@ router = APIRouter()
 
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_student(student: StudentCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)): 
+
     new_student = User(
-        user_id=generate_unique_user_id(), 
+        user_id=generate_unique_user_id(db), 
         email=student.email,
         hashed_password=get_password_hash(student.password),
         first_name=student.first_name,
         last_name=student.last_name,
-        phone_number=student.phone_number,
         school_id=admin.school_id
     )
     db.add(new_student)
