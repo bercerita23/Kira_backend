@@ -60,7 +60,7 @@ def send_admin_verification_email(email: str,
     <div class="container">
       <h1>Bercerita KIRA</h1>
       <p>Click the button below to reset your password:</p>
-      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Verify Account</a>
+      <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Reset Password</a>
       <p>If the link does not work, you can copy and paste the following URL into your browser:</p>
       <p><a href="{verification_link}">{verification_link}</a></p>
       <p>Your verification code is:</p>

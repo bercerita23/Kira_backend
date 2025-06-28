@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.router.auth_util import *
 from app.config import settings
 from app.database import get_db
+from app.schema.admin_schema import *
 from app.schema.auth_schema import *
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
@@ -226,9 +227,14 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
 
         return {"message": f"Reset password email sent"}
         
-    
-# TODO: put the separated routes here
 @router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-async def reset_admin_password(db: Session = Depends(get_db)): 
+async def reset_admin_password(request: PasswordResetWithEmail, db: Session = Depends(get_db)): 
 
-    pass
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    hashed_password = get_password_hash(request.new_password)
+    user.hashed_password = hashed_password 
+    db.commit()
+
+    return {"message": "Password reset successfully"}
