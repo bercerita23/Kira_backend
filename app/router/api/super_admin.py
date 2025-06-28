@@ -10,6 +10,7 @@ from typing import Any, Dict
 from app.router.aws_ses import *
 from app.router.auth_util import *
 from uuid import uuid4
+from app.model.schools import School
 
 router = APIRouter()
 

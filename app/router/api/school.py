@@ -11,5 +11,5 @@ router = APIRouter()
 async def get_all_school(db: Session = Depends(get_db)):
     
     temp = db.query(School).all()
-    res = [{"school_id": school.school_id, "name": school.name, "email": school.email, "address": school.address, "telephone": school.telephone} for school in temp]
+    res = [{"school_id": school.school_id, "name": school.name} for school in temp]
     return { "schools": res }
