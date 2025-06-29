@@ -33,4 +33,5 @@ class UserCreate(BaseModel):
 class LoginRequest(BaseModel):
     user_id: Optional[str] = None
     email: Optional[EmailStr] = None
+    username: Optional[str] = None
     password: str

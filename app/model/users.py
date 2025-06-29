@@ -17,5 +17,6 @@ class User(Base):
     last_login_time = Column(DateTime, nullable=True)
     is_super_admin = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
-
+    username = Column(String(50), nullable=True, unique=True)
+    
     school = relationship("School", back_populates="users")
