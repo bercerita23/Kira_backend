@@ -13,6 +13,7 @@ from app.model.verification_codes import VerificationCode
 from app.model.employee_codes import EmployeeCode
 from app.router.dependencies import *
 from app.router.aws_ses import *
+from app.model.schools import School
 from uuid import uuid4
 
 
@@ -238,3 +239,13 @@ async def reset_admin_password(request: PasswordResetWithEmail, db: Session = De
     db.commit()
 
     return {"message": "Password reset successfully"}
+
+
+@router.get("/school", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_school(db: Session = Depends(get_db)):
+    temp = db.query(School).all()
+    res = [{
+        "school_id": school.school_id,
+        "name": school.name,
+    } for school in temp]
+    return {"schools": res}
