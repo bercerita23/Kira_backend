@@ -14,7 +14,6 @@ def send_admin_verification_email(email: str,
                             frontend_route: str, 
                             code: str, 
                             first_name: str):
-    #verification_link = f"https://main.d3hzyon2wqrdca.amplifyapp.com/signup/?code={code}"
     verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&first_name={first_name}"
     body_html = f"""\
 <html>
@@ -150,7 +149,6 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
       <p>Your verification code is:</p>
       <div class="code">{code}</div>
       <p>This code will expire in 180 minutes. Please enter it promptly to complete your verification.</p>
-
       <div class="footer">
         <p>Learn more about us at <a href="https://www.bercerita.org/" target="_blank">bercerita.org</a>.</p>
         <p>&copy; {datetime.now().year} Bercerita KIRA. All rights reserved.</p>
