@@ -6,9 +6,10 @@ class StudentCreate(BaseModel):
     password: str
     first_name: str
     last_name: str
+    username: str
 
-class PasswordResetWithId(BaseModel): 
-    user_id: str = None
+class PasswordResetWithUsername(BaseModel): 
+    username: str = None
     new_password: str
 
 class PasswordResetWithEmail(BaseModel): 
