@@ -15,7 +15,6 @@ def send_admin_verification_email(email: str,
                             frontend_route: str, 
                             code: str, 
                             first_name: str):
-    #verification_link = f"https://main.d3hzyon2wqrdca.amplifyapp.com/signup/?code={code}"
     verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}&first_name={first_name}"
     body_html = f"""\
 <html>
@@ -100,7 +99,7 @@ def send_admin_verification_email(email: str,
         print(e.response['Error']['Message'])
 
 def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id: str, school_id: str, first_name: str, last_name: str):
-    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?email={email}&code={code}&user_id={user_id}&school_id={school_id}&first_name={first_name}&last_name={last_name}"
+    verification_link = f"{settings.FRONTEND_URL}/{frontend_route}/?code={code}"
     body_html = f"""\
 <html>
   <head>
@@ -150,11 +149,7 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
       <p>If the data is not copied to the page, please use the following information:</p>
       <p>Your verification code is:</p>
       <div class="code">{code}</div>
-      <p>Email: {email}</p>
-      <p>User ID: {user_id}</p>
-      <p>School ID: {school_id}</p>
       <p>First Name: {first_name}</p>
-      <p>Last Name: {last_name}</p>
       <p>This code will expire in 10 minutes. Please enter it promptly to complete your verification.</p>
 
       <div class="footer">
