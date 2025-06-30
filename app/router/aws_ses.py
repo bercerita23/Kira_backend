@@ -6,7 +6,6 @@ from app.config import settings
 SENDER = "Bercerita KIRA <dev-team@kira-api.com>"
 CONFIGURATION_SET = "ConfigSet"
 AWS_REGION = "us-east-2"
-SUBJECT = "BERCERITA KIRA - Account Verification Code"
 CHARSET = "UTF-8"
                     
 
@@ -90,7 +89,7 @@ def send_admin_verification_email(email: str,
                 },
                 'Subject': {
                     'Charset': CHARSET,
-                    'Data': SUBJECT,
+                    'Data': "Bercerita KIRA - Verification Code",
                 },
             },
             Source=SENDER,
@@ -149,9 +148,7 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
       <p>If the data is not copied to the page, please use the following information:</p>
       <p>Your verification code is:</p>
       <div class="code">{code}</div>
-      <p>First Name: {first_name}</p>
-      <p>This code will expire in 10 minutes. Please enter it promptly to complete your verification.</p>
-
+      <p>This code will expire in 180 minutes. Please enter it promptly to complete your verification.</p>
       <div class="footer">
         <p>Learn more about us at <a href="https://www.bercerita.org/" target="_blank">bercerita.org</a>.</p>
         <p>&copy; {datetime.now().year} Bercerita KIRA. All rights reserved.</p>
@@ -177,7 +174,7 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
                 },
                 'Subject': {
                     'Charset': CHARSET,
-                    'Data': SUBJECT,
+                    'Data': "Bercerita KIRA - School Admin Registeration",
                 },
             },
             Source=SENDER,
@@ -185,7 +182,7 @@ def send_admin_invite_email(email: str, frontend_route: str, code: str, user_id:
     except ClientError as e:
         print(e.response['Error']['Message'])
     
-def send_reset_request_to_admin(frontend_route: str, email: str, user_id: str, school_id: str, first_name: str):
+def send_reset_request_to_admin(frontend_route: str, email: str, username: str, school_id: str, first_name: str):
   verification_link = f"{settings.FRONTEND_URL}/{frontend_route}?email={email}"
   body_html = f"""\
 <html>
@@ -229,7 +226,7 @@ def send_reset_request_to_admin(frontend_route: str, email: str, user_id: str, s
   <body>
     <div class="container">
       <h1>Bercerita KIRA</h1>
-      <p>Student {first_name} with school ID <strong>{school_id}</strong> and user ID <strong>{user_id}</strong> has requested a password reset.</p>
+      <p>Student {first_name} with school ID <strong>{school_id}</strong> and username <strong>{username}</strong> has requested a password reset.</p>
       <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">Login</a>
       <p>If the link does not work, you can copy and paste the following URL into your browser:</p>
       <p><a href="{verification_link}">{verification_link}</a></p>
@@ -259,7 +256,7 @@ def send_reset_request_to_admin(frontend_route: str, email: str, user_id: str, s
               },
               'Subject': {
                   'Charset': CHARSET,
-                  'Data': SUBJECT,
+                  'Data': "Bercerita KIRA - Student Password Reset",
               },
           },
           Source=SENDER,

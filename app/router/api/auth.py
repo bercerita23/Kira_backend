@@ -10,9 +10,9 @@ from app.schema.admin_schema import *
 from app.schema.auth_schema import *
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
-from app.model.employee_codes import EmployeeCode
 from app.router.dependencies import *
 from app.router.aws_ses import *
+from app.model.schools import School
 from uuid import uuid4
 
 
@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
 async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
-    """_summary_
+    """_summary_ student logs in with username
 
     Args:
         request (LoginRequest): _description_
@@ -34,39 +34,34 @@ async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
     Returns:
         _type_: _description_
     """
-    user = None
+    student = None
 
-    # Try to fetch user based on provided identifiers
-    if request.user_id:
-        user = db.query(User).filter(User.user_id  == request.user_id).first()
-    elif request.email:
-        user = db.query(User).filter(User.email == request.email).first()
+    student = db.query(User).filter(User.user_id  == request.username).first()
 
-    if not user:
+    if not student:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User not found"
         )
 
     # Verify password
-    if not verify_password(request.password, user.hashed_password):
+    if not verify_password(request.password, student.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect credentials"
         )
 
-   
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     access_token = create_access_token(
-        subject=user.user_id,
-        email=user.email,
-        first_name=user.first_name,
+        subject=student.user_id,
+        email=student.email,
+        first_name=student.first_name,
         role="student",
-        school_id=user.school_id,
+        school_id=student.school_id,
         expires_delta=access_token_expires
     )
-    user.last_login_time = datetime.now()
+    student.last_login_time = datetime.now()
     db.commit()
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -212,7 +207,7 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         return {"message": f"Reset password email sent to {user.email}"}
     
     else: # Student is trying to reset password
-        student = db.query(User).filter(User.user_id == request_body.user_id).first()
+        student = db.query(User).filter(User.username == request_body.username).first()
         if not student:
             raise HTTPException(status_code=404, detail="User not found")   
         
@@ -221,8 +216,8 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         admin_emails = [r.email for r in res]
         for email in admin_emails: 
             print(email)
-            send_reset_request_to_admin( "admin/login", email,
-                                    student.user_id, student.school_id, student.first_name)
+            send_reset_request_to_admin("admin/login", email,
+                                    student.username, student.school_id, student.first_name)
         
 
         return {"message": f"Reset password email sent"}
@@ -238,3 +233,13 @@ async def reset_admin_password(request: PasswordResetWithEmail, db: Session = De
     db.commit()
 
     return {"message": "Password reset successfully"}
+
+
+@router.get("/school", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_school(db: Session = Depends(get_db)):
+    temp = db.query(School).all()
+    res = [{
+        "school_id": school.school_id,
+        "name": school.name,
+    } for school in temp]
+    return {"schools": res}

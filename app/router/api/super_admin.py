@@ -5,6 +5,7 @@ from app.database import get_db
 from datetime import datetime
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
+from app.model.temp_admins import TempAdmin
 from app.schema.super_admin_schema import Invitation
 from typing import Any, Dict
 from app.router.aws_ses import *
@@ -21,7 +22,7 @@ async def invite(
     """_summary_: Super admin will call this endpoint to sned an invitation email to a new school admin to register. 
     1. If the email exists in the DB, raise an exception. 
     2. Generate a verification code and store it in the database
-    3. Temporarily store the user information in the users table to compare later
+    3. Temporarily store the user information in the temp_admins table to compare later
     4. Send the code to the email address provided in the request with SES.
 
     Args:
@@ -63,22 +64,22 @@ async def invite(
     db.refresh(entry)
 
     # step 3: Temporarily store the user information in the users table to compare later
-    temp_user = User(
-        user_id=generate_unique_user_id(db),
-        school_id=request.school_id,
-        email=request.email,
-        first_name=request.first_name,
-        last_name=request.last_name,
-        hashed_password="",
-        is_admin=True,  
+    temp_admin = TempAdmin(
+        user_id = generate_unique_user_id(db), 
+        school_id = request.school_id, 
+        email = request.email, 
+        first_name = request.first_name, 
+        last_name = request.last_name, 
+        verified = False, 
+        created_at = datetime.now() 
     )
-    db.add(temp_user)
+    db.add(temp_admin)
     db.commit()
-    db.refresh(temp_user)
+    db.refresh(temp_admin)
     
-    send_admin_invite_email(temp_user.email, "signup", code, 
-                            temp_user.user_id,
-                            temp_user.school_id,
-                            temp_user.first_name, 
-                            temp_user.last_name)
+    send_admin_invite_email(temp_admin.email, "signup", code, 
+                            temp_admin.user_id,
+                            temp_admin.school_id,
+                            temp_admin.first_name, 
+                            temp_admin.last_name)
     return {"message": f"Verification code was sent to {request.email}"}
