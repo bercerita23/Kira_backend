@@ -27,8 +27,12 @@ class ResetPasswordRequest(BaseModel):
     email: Optional[str] = None
 
 
-class UserCreate(BaseModel):
+class AdminCreate(BaseModel):
     email: EmailStr
+    school_id: str
+    first_name: str
+    last_name: str
+    code: str
     password: str
 
 class LoginRequest(BaseModel):

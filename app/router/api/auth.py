@@ -10,6 +10,7 @@ from app.schema.admin_schema import *
 from app.schema.auth_schema import *
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
+from app.model.temp_admins import TempAdmin
 from app.router.dependencies import *
 from app.router.aws_ses import *
 from app.model.schools import School
@@ -134,13 +135,17 @@ async def login_administrator(request: LoginRequest, db: Session = Depends(get_d
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.patch("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def register(request: UserCreate, db: Session = Depends(get_db)):
-    """_summary_: Register a new user after check the information user and suepr admin entered when inviting a new school admin.
+@router.post("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def register(request: AdminCreate, db: Session = Depends(get_db)):
+    """_summary_: Register a new admin 
+    1. Check the verification code: valid & not expired 
+    2. Check the information user entered is correct 
+    3. Add user into the table 
+    4. Delete the veriication code
+    5. Change the "verified" on temp_admins to true
     
-
     Args:
-        request (UserCreateWithCode): _description_
+        request (AdminCreate): _description_: email, school_id, firstname, lastname
         db (Session, optional): _description_. Defaults to Depends(get_db).
 
     Raises:
@@ -150,19 +155,41 @@ async def register(request: UserCreate, db: Session = Depends(get_db)):
     Returns:
         _type_: _description_
     """
+    verification_code = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email,
+        VerificationCode.code == request.code,
+        VerificationCode.expires_at > datetime.now()
+    ).first()
+    if not verification_code: 
+        raise HTTPException(status_code=400, detail="Code expired or incorrect code.")
     
-    existing_user = db.query(User).filter(User.email == request.email).first()
+    temp_admin = db.query(TempAdmin).filter(TempAdmin.email == request.email).first()
+    if not temp_admin:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
 
-    if existing_user:
-        # Update existing user
-        existing_user.hashed_password = get_password_hash(request.password)
-        db.commit()
-        db.refresh(existing_user)
-        return {"message": "User information updated successfully"}
-    else: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="User not found.")
+    if (request.school_id != temp_admin.school_id) or (request.first_name != temp_admin.first_name) or (request.last_name != temp_admin.last_name): 
+        raise HTTPException(status_code=400, detail="Information entered is incorrect.")
+    
+    admin = User(
+        user_id = temp_admin.user_id, 
+        school_id = temp_admin.school_id, 
+        email = temp_admin.email, 
+        hashed_password = get_password_hash(request.password), 
+        first_name = temp_admin.first_name, 
+        last_name = temp_admin.last_name, 
+        created_at = datetime.now(), 
+        is_super_admin = False, 
+        is_admin = True, 
+        username = None, 
+        deactivated = False
+    )
+
+    temp_admin.verified = True
+    db.add(admin)
+    db.delete(verification_code)
+    db.commit()
+    return {"message": "You have been registered successfully."}
+
 
 @router.post("/request-reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_reset_password(request_body: ResetPasswordRequest, db: Session = Depends(get_db)):
@@ -222,14 +249,38 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
 
         return {"message": f"Reset password email sent"}
         
-@router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def reset_admin_password(request: PasswordResetWithEmail, db: Session = Depends(get_db)): 
+    """_summary_ let an admin resets password with unexpired code
+    1. check the code
+    2. udpate password 
+    3. delete code
 
+    Args:
+        request (PasswordResetWithEmail): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_: Code expired or incorrect code
+        HTTPException: _description_: User not found
+
+    Returns:
+        _type_: _description_
+    """
+    verification_code = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email,
+        VerificationCode.code == request.code,
+        VerificationCode.expires_at > datetime.now()
+    ).first()
+
+    if not verification_code: 
+        raise HTTPException(status_code=400, detail="Code expired or incorrect code.")
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     hashed_password = get_password_hash(request.new_password)
     user.hashed_password = hashed_password 
+    db.delete(verification_code)
     db.commit()
 
     return {"message": "Password reset successfully"}
