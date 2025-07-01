@@ -47,7 +47,7 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
     Returns:
         _type_: _description_ a list of students in JSON format with 200
     """
-    students = db.query(User).filter(User.school_id == admin.school_id).all()
+    students = db.query(User).filter(User.school_id == admin.school_id, User.is_admin == False).all()
     return {"students": students}
 
 @router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
