@@ -7,7 +7,6 @@ from app.router import (
     super_admin_router, 
     admin_router,
     school_router,
-    code_router
 )
 from app.config import settings
 
@@ -19,7 +18,6 @@ app.include_router(users_router, prefix="/users", tags=["User"])
 app.include_router(super_admin_router, prefix="/super_admin", tags=["Super Admin"])
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 app.include_router(school_router, prefix="/school", tags=["School"])   
-app.include_router(code_router, prefix="/code", tags=["Code"]) 
 
 #####################
 ### Root Endpoint ###

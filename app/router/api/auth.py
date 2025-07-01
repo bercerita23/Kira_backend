@@ -6,12 +6,14 @@ from sqlalchemy import text
 from app.router.auth_util import *
 from app.config import settings
 from app.database import get_db
+from app.schema.admin_schema import *
 from app.schema.auth_schema import *
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
-from app.model.employee_codes import EmployeeCode
+from app.model.temp_admins import TempAdmin
 from app.router.dependencies import *
 from app.router.aws_ses import *
+from app.model.schools import School
 from uuid import uuid4
 
 
@@ -19,7 +21,7 @@ router = APIRouter()
 
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
 async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
-    """_summary_
+    """_summary_ student logs in with username
 
     Args:
         request (LoginRequest): _description_
@@ -33,39 +35,34 @@ async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
     Returns:
         _type_: _description_
     """
-    user = None
+    student = None
 
-    # Try to fetch user based on provided identifiers
-    if request.user_id:
-        user = db.query(User).filter(User.user_id  == request.user_id).first()
-    elif request.email:
-        user = db.query(User).filter(User.email == request.email).first()
+    student = db.query(User).filter(User.user_id  == request.username).first()
 
-    if not user:
+    if not student:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User not found"
         )
 
     # Verify password
-    if not verify_password(request.password, user.hashed_password):
+    if not verify_password(request.password, student.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect credentials"
         )
 
-   
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     access_token = create_access_token(
-        subject=user.user_id,
-        email=user.email,
-        first_name=user.first_name,
+        subject=student.user_id,
+        email=student.email,
+        first_name=student.first_name,
         role="student",
-        school_id=user.school_id,
+        school_id=student.school_id,
         expires_delta=access_token_expires
     )
-    user.last_login_time = datetime.now()
+    student.last_login_time = datetime.now()
     db.commit()
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -138,13 +135,17 @@ async def login_administrator(request: LoginRequest, db: Session = Depends(get_d
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.patch("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def register(request: UserCreate, db: Session = Depends(get_db)):
-    """_summary_: Register a new user after check the information user and suepr admin entered when inviting a new school admin.
+@router.post("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def register(request: AdminCreate, db: Session = Depends(get_db)):
+    """_summary_: Register a new admin 
+    1. Check the verification code: valid & not expired 
+    2. Check the information user entered is correct 
+    3. Add user into the table 
+    4. Delete the veriication code
+    5. Change the "verified" on temp_admins to true
     
-
     Args:
-        request (UserCreateWithCode): _description_
+        request (AdminCreate): _description_: email, school_id, firstname, lastname
         db (Session, optional): _description_. Defaults to Depends(get_db).
 
     Raises:
@@ -154,19 +155,41 @@ async def register(request: UserCreate, db: Session = Depends(get_db)):
     Returns:
         _type_: _description_
     """
+    verification_code = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email,
+        VerificationCode.code == request.code,
+        VerificationCode.expires_at > datetime.now()
+    ).first()
+    if not verification_code: 
+        raise HTTPException(status_code=400, detail="Code expired or incorrect code.")
     
-    existing_user = db.query(User).filter(User.email == request.email).first()
+    temp_admin = db.query(TempAdmin).filter(TempAdmin.email == request.email).first()
+    if not temp_admin:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
 
-    if existing_user:
-        # Update existing user
-        existing_user.hashed_password = get_password_hash(request.password)
-        db.commit()
-        db.refresh(existing_user)
-        return {"message": "User information updated successfully"}
-    else: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="User not found.")
+    if (request.school_id != temp_admin.school_id) or (request.first_name != temp_admin.first_name) or (request.last_name != temp_admin.last_name): 
+        raise HTTPException(status_code=400, detail="Information entered is incorrect.")
+    
+    admin = User(
+        user_id = temp_admin.user_id, 
+        school_id = temp_admin.school_id, 
+        email = temp_admin.email, 
+        hashed_password = get_password_hash(request.password), 
+        first_name = temp_admin.first_name, 
+        last_name = temp_admin.last_name, 
+        created_at = datetime.now(), 
+        is_super_admin = False, 
+        is_admin = True, 
+        username = None, 
+        deactivated = False
+    )
+
+    temp_admin.verified = True
+    db.add(admin)
+    db.delete(verification_code)
+    db.commit()
+    return {"message": "You have been registered successfully."}
+
 
 @router.post("/request-reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_reset_password(request_body: ResetPasswordRequest, db: Session = Depends(get_db)):
@@ -211,21 +234,63 @@ async def request_reset_password(request_body: ResetPasswordRequest, db: Session
         return {"message": f"Reset password email sent to {user.email}"}
     
     else: # Student is trying to reset password
-        student = db.query(User).filter(User.user_id == request_body.user_id).first()
+        student = db.query(User).filter(User.username == request_body.username).first()
         if not student:
             raise HTTPException(status_code=404, detail="User not found")   
         
-        admin = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).first()
+        res = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).all()
         # send the reset password request to the admin's email
-        send_reset_request_to_admin(admin.email, "admin/login", code, 
-                                student.user_id, student.school_id, student.first_name)
+        admin_emails = [r.email for r in res]
+        for email in admin_emails: 
+            print(email)
+            send_reset_request_to_admin("admin/login", email,
+                                    student.username, student.school_id, student.first_name)
         
 
-        return {"message": f"Reset password email sent to {admin.email}"}
+        return {"message": f"Reset password email sent"}
         
-    
-# TODO: put the separated routes here
-@router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-async def reset_admin_password(db: Session = Depends(get_db)): 
+@router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
+async def reset_admin_password(request: PasswordResetWithEmail, db: Session = Depends(get_db)): 
+    """_summary_ let an admin resets password with unexpired code
+    1. check the code
+    2. udpate password 
+    3. delete code
 
-    pass
+    Args:
+        request (PasswordResetWithEmail): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: _description_: Code expired or incorrect code
+        HTTPException: _description_: User not found
+
+    Returns:
+        _type_: _description_
+    """
+    verification_code = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email,
+        VerificationCode.code == request.code,
+        VerificationCode.expires_at > datetime.now()
+    ).first()
+
+    if not verification_code: 
+        raise HTTPException(status_code=400, detail="Code expired or incorrect code.")
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    hashed_password = get_password_hash(request.new_password)
+    user.hashed_password = hashed_password 
+    db.delete(verification_code)
+    db.commit()
+
+    return {"message": "Password reset successfully"}
+
+
+@router.get("/school", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_school(db: Session = Depends(get_db)):
+    temp = db.query(School).all()
+    res = [{
+        "school_id": school.school_id,
+        "name": school.name,
+    } for school in temp]
+    return {"schools": res}

@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from fastapi import Depends, Query, status
+from fastapi import Depends, Query, status, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from pydantic import ValidationError
@@ -11,7 +11,7 @@ from app.database import get_db
 from app.model.users import User
 from app.schema.auth_schema import TokenPayload
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login-ada")
 
 
 def get_pagination_params(
@@ -49,7 +49,7 @@ def get_token(token: str = Depends(oauth2_scheme)) -> TokenPayload:
         )
         token_data = TokenPayload(**payload)
     except (jwt.JWTError, ValidationError) as e:
-        raise Exception(status_code=status.HTTP_403_FORBIDDEN) from e
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from e
     return token_data
 
 
@@ -71,7 +71,7 @@ def get_current_user(
     """
     user = db.query(User).filter(User.user_id == token.sub).first() 
     if user is None:
-        raise Exception(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, details="User not found"
         )
     return user
@@ -93,7 +93,7 @@ def get_current_admin(
 
     """
     if not current_user.is_admin:
-        raise Exception(
+        raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             details="This user isn't an admin.",
         )
@@ -114,8 +114,9 @@ def get_current_super_admin(
         HTTPException: If the current user is not a super user.
 
     """
+    
     if not current_user.is_super_admin: 
-        raise Exception(
+        raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             details="This user isn't an admin.",
         )

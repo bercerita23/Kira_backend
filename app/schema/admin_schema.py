@@ -3,14 +3,17 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 class StudentCreate(BaseModel): 
-    email: Optional[EmailStr] = None
     password: str
     first_name: str
     last_name: str
-    phone_number: Optional[str] = None
+    username: str
 
-class PasswordReset(BaseModel): 
-    user_id: Optional[str] = None
-    email: Optional[EmailStr] = None
+class PasswordResetWithUsername(BaseModel): 
+    username: str = None
+    new_password: str
+
+class PasswordResetWithEmail(BaseModel): 
+    code: str
+    email: EmailStr = None
     new_password: str
 
