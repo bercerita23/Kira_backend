@@ -37,7 +37,7 @@ async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
     """
     student = None
 
-    student = db.query(User).filter(User.user_id  == request.username).first()
+    student = db.query(User).filter(User.username  == request.username).first()
 
     if not student:
         raise HTTPException(
