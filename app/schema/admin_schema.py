@@ -13,6 +13,7 @@ class PasswordResetWithUsername(BaseModel):
     new_password: str
 
 class PasswordResetWithEmail(BaseModel): 
+    code: str
     email: EmailStr = None
     new_password: str
 
