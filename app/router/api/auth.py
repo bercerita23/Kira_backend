@@ -84,13 +84,7 @@ async def login_administrator(request: LoginRequestAdmin, db: Session = Depends(
         _type_: _description_
     """
 
-    user = None
-
-    # Try to fetch user based on provided identifiers
-    if request.user_id:
-        user = db.query(User).filter(User.user_id  == request.user_id).first()
-    elif request.email:
-        user = db.query(User).filter(User.email == request.email).first()
+    user = db.query(User).filter(User.email  == request.email).first()
 
     if not user:
         raise HTTPException(

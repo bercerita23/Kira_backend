@@ -34,10 +34,7 @@ def create_access_token(
         expire = datetime.now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-
-    print(f"EXPIRE_AT: {expire.timestamp()}")
     iat = datetime.now()
-    print(f"IAT: {iat.timestamp()}")
     to_encode = {"exp": int(expire.timestamp()), 
                  "email": email, 
                  "first_name": first_name, 
