@@ -90,6 +90,19 @@ async def invite(
 async def deactivate_admin(request: AdminActivation, 
                            db: Session = Depends(get_db), 
                            super_admin: User = Depends(get_current_super_admin)):
+    """deactivate an admin
+
+    Args:
+        request (AdminActivation): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        super_admin (User, optional): _description_. Defaults to Depends(get_current_super_admin).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     admin = db.query(User).filter(User.email == request.email).first()
     if not admin: 
         raise HTTPException(
@@ -110,6 +123,19 @@ async def deactivate_admin(request: AdminActivation,
 async def reactivate_admin(request: AdminActivation, 
                            db: Session = Depends(get_db), 
                            super_admin: User = Depends(get_current_super_admin)): 
+    """reactivate an admin
+
+    Args:
+        request (AdminActivation): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        super_admin (User, optional): _description_. Defaults to Depends(get_current_super_admin).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
     admin = db.query(User).filter(User.email == request.email).first()
     if not admin: 
         raise HTTPException(
@@ -137,6 +163,15 @@ async def get_schools_with_admins(
     db: Session = Depends(get_db), 
     super_admin: User = Depends(get_current_super_admin)
 ):
+    """enchanced fetch schools with admins
+
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        super_admin (User, optional): _description_. Defaults to Depends(get_current_super_admin).
+
+    Returns:
+        _type_: _description_
+    """
     schools = db.query(School).all()
     result = []
 
