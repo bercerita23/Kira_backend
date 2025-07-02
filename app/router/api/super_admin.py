@@ -12,6 +12,7 @@ from app.router.aws_ses import *
 from app.router.auth_util import *
 from uuid import uuid4
 from app.model.schools import School
+from app.router.dependencies import *
 
 router = APIRouter()
 
@@ -83,3 +84,8 @@ async def invite(
                             temp_admin.first_name, 
                             temp_admin.last_name)
     return {"message": f"Verification code was sent to {request.email}"}
+
+@router.get("/")
+def get_all_users(db: Session = Depends(get_db), super_admin: User = Depends(get_current_super_admin)):
+    users = db.query(User).all()
+    return { "Hello_Form:" : users }

@@ -20,7 +20,7 @@ from uuid import uuid4
 router = APIRouter()
 
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
-async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
+async def login_student(request: LoginRequestStudent, db: Session = Depends(get_db)):
     """_summary_ student logs in with username
 
     Args:
@@ -68,7 +68,7 @@ async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/login-ada", response_model=Token, status_code=status.HTTP_200_OK)
-async def login_administrator(request: LoginRequest, db: Session = Depends(get_db)):
+async def login_administrator(request: LoginRequestAdmin, db: Session = Depends(get_db)):
     """_summary_
 
     Args:

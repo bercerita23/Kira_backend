@@ -12,8 +12,13 @@ class Token(BaseModel):
 
 class TokenPayload(BaseModel):
     """Payload for Bearer Access Token"""
-
-    sub: Optional[str] = None
+    sub: str  # usually user id
+    email: str = None
+    first_name: str
+    role: str
+    school_id: Optional[str] = None
+    exp: int
+    iat: int
 
 
 class UserRegister(BaseModel):
@@ -35,8 +40,10 @@ class AdminCreate(BaseModel):
     code: str
     password: str
 
-class LoginRequest(BaseModel):
-    user_id: Optional[str] = None
-    email: Optional[EmailStr] = None
-    username: Optional[str] = None
+class LoginRequestStudent(BaseModel):
+    username: str
+    password: str
+
+class LoginRequestAdmin(BaseModel):
+    email: str
     password: str
