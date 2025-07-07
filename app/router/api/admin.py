@@ -83,3 +83,134 @@ async def reset_student_password(request: PasswordResetWithUsername, db: Session
     db.commit()
 
     return {"message": "Password reset successfully"}
+
+@router.patch("/update", response_model=dict, status_code=status.HTTP_200_OK)
+async def update_student_info(
+    student_update: StudentUpdate, 
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+):
+    """_summary_: Update student information (first_name, last_name, email, notes)
+    
+    Args:
+        username (str): Username of the student to update
+        student_update (StudentUpdate): Updated student information
+        db (Session): Database session
+        admin (User): Current admin user
+        
+    Raises:
+        HTTPException: If student not found or not in admin's school
+        
+    Returns:
+        dict: Success message
+    """
+    # Find the student in admin's school
+    student = db.query(User).filter(
+        User.username == student_update.username,
+        User.school_id == admin.school_id,
+        User.is_admin == False
+    ).first()
+    
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Student not found in your school"
+        )
+    
+    # Update only provided fields
+    if student_update.first_name is not None:
+        student.first_name = student_update.first_name
+    if student_update.last_name is not None:
+        student.last_name = student_update.last_name
+    if student_update.email is not None:
+        student.email = student_update.email
+    if student_update.notes is not None:
+        student.notes = student_update.notes
+    if student_update.username is not None:
+        student.username = student_update.username
+    db.commit()
+    return {"message": "Student information updated successfully"}
+
+@router.patch("/deactivate", response_model=dict, status_code=status.HTTP_200_OK)
+async def deactivate_student(
+    request: StudentDeactivateRequest,
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+):
+    """_summary_: Deactivate a student (set deactivated = True)
+    
+    Args:
+        request (StudentDeactivateRequest): Contains username of student to deactivate
+        db (Session): Database session
+        admin (User): Current admin user
+        
+    Raises:
+        HTTPException: If student not found or not in admin's school
+        
+    Returns:
+        dict: Success message
+    """
+    # Find the student in admin's school
+    student = db.query(User).filter(
+        User.username == request.username,
+        User.school_id == admin.school_id,
+        User.is_admin == False
+    ).first()
+    
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Student not found in your school"
+        )
+    
+    if student.deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Student is already deactivated"
+        )
+    
+    student.deactivated = True
+    db.commit()
+    return {"message": "Student deactivated successfully"}
+
+@router.patch("/reactivate", response_model=dict, status_code=status.HTTP_200_OK)
+async def reactivate_student(
+    request: StudentReactivateRequest,
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+):
+    """_summary_: Reactivate a deactivated student (set deactivated = False)
+    
+    Args:
+        request (StudentReactivateRequest): Contains username of student to reactivate
+        db (Session): Database session
+        admin (User): Current admin user
+        
+    Raises:
+        HTTPException: If student not found or not in admin's school
+        
+    Returns:
+        dict: Success message
+    """
+    # Find the student in admin's school
+    student = db.query(User).filter(
+        User.username == request.username,
+        User.school_id == admin.school_id,
+        User.is_admin == False
+    ).first()
+    
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Student not found in your school"
+        )
+    
+    if not student.deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Student is already active"
+        )
+    
+    student.deactivated = False
+    db.commit()
+    return {"message": "Student reactivated successfully"}
