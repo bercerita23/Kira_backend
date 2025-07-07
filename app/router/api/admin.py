@@ -12,7 +12,9 @@ from datetime import datetime
 router = APIRouter()
 
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def create_student(student: StudentCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)): 
+async def create_student(student: StudentCreate,
+                         db: Session = Depends(get_db),
+                         admin: User = Depends(get_current_admin)): 
     """_summary_ admin will call this route to create a student with 
     1. username
     2. a password
@@ -64,7 +66,9 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
     return { "student_data" : res}
     
 @router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-async def reset_student_password(request: PasswordResetWithUsername, db: Session = Depends(get_db)):
+async def reset_student_password(request: PasswordResetWithUsername,
+                                 db: Session = Depends(get_db), 
+                                 admin: User = Depends(get_current_admin)):
     """_summary_ : 
     
     Raises:
@@ -131,7 +135,7 @@ async def update_student_info(
     db.commit()
     return {"message": "Student information updated successfully"}
 
-@router.patch("/deactivate", response_model=dict, status_code=status.HTTP_200_OK)
+@router.patch("/deactivate_student", response_model=dict, status_code=status.HTTP_200_OK)
 async def deactivate_student(
     request: StudentDeactivateRequest,
     db: Session = Depends(get_db), 
@@ -173,7 +177,7 @@ async def deactivate_student(
     db.commit()
     return {"message": "Student deactivated successfully"}
 
-@router.patch("/reactivate", response_model=dict, status_code=status.HTTP_200_OK)
+@router.patch("/reactivate-student", response_model=dict, status_code=status.HTTP_200_OK)
 async def reactivate_student(
     request: StudentReactivateRequest,
     db: Session = Depends(get_db), 
