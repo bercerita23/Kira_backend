@@ -20,7 +20,8 @@ from uuid import uuid4
 router = APIRouter()
 
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
-async def login_student(request: LoginRequestStudent, db: Session = Depends(get_db)):
+async def login_student(request: LoginRequestStudent, 
+                        db: Session = Depends(get_db)):
     """_summary_ student logs in with username
 
     Args:
@@ -68,7 +69,8 @@ async def login_student(request: LoginRequestStudent, db: Session = Depends(get_
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/login-ada", response_model=Token, status_code=status.HTTP_200_OK)
-async def login_administrator(request: LoginRequestAdmin, db: Session = Depends(get_db)):
+async def login_administrator(request: LoginRequestAdmin, 
+                              db: Session = Depends(get_db)):
     """_summary_
 
     Args:
@@ -130,7 +132,8 @@ async def login_administrator(request: LoginRequestAdmin, db: Session = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def register(request: AdminCreate, db: Session = Depends(get_db)):
+async def register(request: AdminCreate, 
+                   db: Session = Depends(get_db)):
     """_summary_: Register a new admin 
     1. Check the verification code: valid & not expired 
     2. Check the information user entered is correct 
@@ -186,7 +189,8 @@ async def register(request: AdminCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/request-reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
-async def request_reset_password(request_body: ResetPasswordRequest, db: Session = Depends(get_db)):
+async def request_reset_password(request_body: ResetPasswordRequest, 
+                                 db: Session = Depends(get_db)):
     """_summary_: this router will be called by the student or the admin to send a reset password email to the admin. 
     1. check who's sending the request by checking the content of the request.
     1.1. if it's an email -> an admin is trying to send the request 
