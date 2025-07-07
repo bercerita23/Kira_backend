@@ -20,7 +20,7 @@ from uuid import uuid4
 router = APIRouter()
 
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
-async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
+async def login_student(request: LoginRequestStudent, db: Session = Depends(get_db)):
     """_summary_ student logs in with username
 
     Args:
@@ -37,7 +37,7 @@ async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
     """
     student = None
 
-    student = db.query(User).filter(User.user_id  == request.username).first()
+    student = db.query(User).filter(User.username  == request.username).first()
 
     if not student:
         raise HTTPException(
@@ -68,7 +68,7 @@ async def login_student(request: LoginRequest, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/login-ada", response_model=Token, status_code=status.HTTP_200_OK)
-async def login_administrator(request: LoginRequest, db: Session = Depends(get_db)):
+async def login_administrator(request: LoginRequestAdmin, db: Session = Depends(get_db)):
     """_summary_
 
     Args:
@@ -84,13 +84,7 @@ async def login_administrator(request: LoginRequest, db: Session = Depends(get_d
         _type_: _description_
     """
 
-    user = None
-
-    # Try to fetch user based on provided identifiers
-    if request.user_id:
-        user = db.query(User).filter(User.user_id  == request.user_id).first()
-    elif request.email:
-        user = db.query(User).filter(User.email == request.email).first()
+    user = db.query(User).filter(User.email  == request.email).first()
 
     if not user:
         raise HTTPException(

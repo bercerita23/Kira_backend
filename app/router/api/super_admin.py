@@ -6,18 +6,20 @@ from datetime import datetime
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
 from app.model.temp_admins import TempAdmin
-from app.schema.super_admin_schema import Invitation
+from app.schema.super_admin_schema import *
 from typing import Any, Dict
 from app.router.aws_ses import *
 from app.router.auth_util import *
 from uuid import uuid4
 from app.model.schools import School
+from app.router.dependencies import *
+from datetime import datetime
 
 router = APIRouter()
 
 @router.post("/invite", response_model=dict, status_code=status.HTTP_200_OK)
 async def invite(
-    request: Invitation, db: Session = Depends(get_db) #TODO: add a dependency to get super admin user)
+    request: Invitation, db: Session = Depends(get_db), super_admin: User = Depends(get_current_super_admin)
 ) -> Dict[str, Any]:
     """_summary_: Super admin will call this endpoint to sned an invitation email to a new school admin to register. 
     1. If the email exists in the DB, raise an exception. 
@@ -83,3 +85,116 @@ async def invite(
                             temp_admin.first_name, 
                             temp_admin.last_name)
     return {"message": f"Verification code was sent to {request.email}"}
+
+@router.post("/deactivate_admin", response_model=dict)
+async def deactivate_admin(request: AdminActivation, 
+                           db: Session = Depends(get_db), 
+                           super_admin: User = Depends(get_current_super_admin)):
+    """deactivate an admin
+
+    Args:
+        request (AdminActivation): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        super_admin (User, optional): _description_. Defaults to Depends(get_current_super_admin).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    admin = db.query(User).filter(User.email == request.email).first()
+    if not admin: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Admin with {request.email} not found.",
+        )
+    admin.deactivated = True 
+    db.commit()
+    db.refresh(admin)
+    time = datetime.now()
+    return {
+        "message": "Admin deactivated successfully", 
+        "admin_email": f"{request.email}", 
+        "deactivated_at": f"{time}"
+    }
+
+@router.post("/reactivate_admin")
+async def reactivate_admin(request: AdminActivation, 
+                           db: Session = Depends(get_db), 
+                           super_admin: User = Depends(get_current_super_admin)): 
+    """reactivate an admin
+
+    Args:
+        request (AdminActivation): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        super_admin (User, optional): _description_. Defaults to Depends(get_current_super_admin).
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    admin = db.query(User).filter(User.email == request.email).first()
+    if not admin: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Admin with {request.email} not found.",
+        )
+    admin.deactivated = False 
+    time = datetime.now()
+    db.commit()
+    db.refresh(admin)
+    return {
+        "message": "Admin activated successfully", 
+        "admin_email": f"{request.email}", 
+        "deactivated_at": f"{time}"
+    }
+
+@router.get("/")
+def get_all_users(db: Session = Depends(get_db), 
+                  super_admin: User = Depends(get_current_super_admin)):
+    users = db.query(User).all()
+    return { "Hello_Form:" : users }
+
+@router.get("/schools_with_admins", response_model=SchoolsResponse, status_code=status.HTTP_200_OK)
+async def get_schools_with_admins(
+    db: Session = Depends(get_db), 
+    super_admin: User = Depends(get_current_super_admin)
+):
+    """enchanced fetch schools with admins
+
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        super_admin (User, optional): _description_. Defaults to Depends(get_current_super_admin).
+
+    Returns:
+        _type_: _description_
+    """
+    schools = db.query(School).all()
+    result = []
+
+    for school in schools:
+        admins = db.query(User).filter(
+            User.school_id == school.school_id,
+            User.is_admin == True
+        ).all()
+
+        students_count = db.query(User).filter(
+            User.school_id == school.school_id,
+            User.is_admin == False
+        ).count()
+
+        school_data = SchoolWithAdminsOut(
+            school_id=school.school_id,
+            name=school.name,
+            email=school.email,
+            data_fetched_at=datetime.now(),
+            admins=[AdminOut.model_validate(admin) for admin in admins],
+            student_count=students_count
+        )
+
+        result.append(school_data)
+
+    return {"schools": result}

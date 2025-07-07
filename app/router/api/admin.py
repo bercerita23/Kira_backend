@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
-from datetime import datetime
 from app.schema.admin_schema import *
 from app.router.auth_util import *
 from app.model.users import User
 from app.router.dependencies import *
-from uuid import uuid4
+from typing import List
+from datetime import datetime
+
 router = APIRouter()
 
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -47,9 +48,21 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
     Returns:
         _type_: _description_ a list of students in JSON format with 200
     """
-    students = db.query(User).filter(User.school_id == admin.school_id).all()
-    return {"students": students}
-
+    print("admin is: ", admin)
+    students = db.query(User).filter(User.school_id == admin.school_id, User.is_admin == False).all()
+    res = {
+        s.username: {
+            "username": s.username,
+            "first_name": s.first_name,
+            "last_name": s.last_name,
+            "created_at": s.created_at,
+            "last_login_time": s.last_login_time,
+            "deactivated": s.deactivated,
+        }
+        for s in students
+    }
+    return { "student_data" : res}
+    
 @router.patch("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def reset_student_password(request: PasswordResetWithUsername, db: Session = Depends(get_db)):
     """_summary_ : 

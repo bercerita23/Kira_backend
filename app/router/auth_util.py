@@ -34,7 +34,14 @@ def create_access_token(
         expire = datetime.now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    to_encode = {"exp": expire, "email": email, "first_name": first_name, "role": role, "school_id": school_id, "sub": str(subject), "iat": datetime.now(),}
+    iat = datetime.now()
+    to_encode = {"exp": int(expire.timestamp()), 
+                 "email": email, 
+                 "first_name": first_name, 
+                 "role": role, 
+                 "school_id": school_id, 
+                 "sub": str(subject), 
+                 "iat": int(iat.timestamp()),}
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
