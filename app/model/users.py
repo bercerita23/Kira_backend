@@ -3,7 +3,6 @@ from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
 from app.model.schools import School
-from app.model.user_badges import UserBadge
 class User(Base):
     __tablename__ = "users"
      
