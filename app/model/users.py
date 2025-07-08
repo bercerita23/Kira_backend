@@ -21,3 +21,5 @@ class User(Base):
     deactivated = Column(Boolean, default=False)
     
     school = relationship("School", back_populates="users")
+    streak = relationship("Streak", back_populates="user", uselist=False)
+    badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
