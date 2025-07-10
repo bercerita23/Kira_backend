@@ -12,4 +12,15 @@ class UserOut(BaseModel):
 class UserListResponse(BaseModel):
     Hello_From: List[UserOut]
 
+class UserBadgeOut(BaseModel):
+    badge_id: str
+    earned_at: datetime
+    is_viewed: bool
+    name: str
+    description: str | None
+    icon_url: str | None
+
+class UserBadgesOut(BaseModel):
+    badges: List[UserBadgeOut]
+
 
