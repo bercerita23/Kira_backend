@@ -1,5 +1,4 @@
 from datetime import timedelta, datetime
-from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -22,68 +21,93 @@ router = APIRouter()
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
 async def login_student(request: LoginRequestStudent, 
                         db: Session = Depends(get_db)):
-    """_summary_ student logs in with username
+
+    """Student login endpoint that handles both username and email authentication
+
 
     Args:
-        request (LoginRequest): _description_
-        db (Session, optional): _description_. Defaults to Depends(get_db).
+        request (LoginRequestStudent): Login request with username/email and password
+        db (Session): Database session
 
     Raises:
-        HTTPException: _description_
-        HTTPException: _description_
-        HTTPException: _description_
+        HTTPException: When user not found or credentials are incorrect
 
     Returns:
-        _type_: _description_
+        Token: Access token for successful authentication
     """
-    student = None
-
-    student = db.query(User).filter(User.username  == request.username).first()
-
-    if not student:
+    # Validate that either username or email is provided
+    if not request.username and not request.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User not found"
+            detail="Either username or email must be provided"
+        )
+
+    # Find user by username or email
+    user = None
+    if request.username:
+        user = db.query(User).filter(User.username == request.username).first()
+    else:
+        user = db.query(User).filter(User.email == request.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid credentials."
+        )
+    
+    if user.deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is deactivated"
         )
 
     # Verify password
-    if not verify_password(request.password, student.hashed_password):
+    if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect credentials"
+            detail="Invalid credentials."
         )
+
+    # Determine user role
+    role = "admin" if (user.is_admin) else "student"
+    
+    # Set school_id based on role
+    school_id = None if user.is_super_admin else user.school_id
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     access_token = create_access_token(
-        subject=student.user_id,
-        email=student.email,
-        first_name=student.first_name,
-        role="student",
-        school_id=student.school_id,
+        subject=user.user_id,
+        email=user.email,
+        first_name=user.first_name,
+        role=role,
+        school_id=school_id,
         expires_delta=access_token_expires
     )
-    student.last_login_time = datetime.now()
+    
+    # Update last login time
+    user.last_login_time = datetime.now()
     db.commit()
     
     return {"access_token": access_token, "token_type": "bearer"}
+        
 
 @router.post("/login-ada", response_model=Token, status_code=status.HTTP_200_OK)
 async def login_administrator(request: LoginRequestAdmin, 
                               db: Session = Depends(get_db)):
-    """_summary_
+
+    """Administrator login endpoint for admin and super admin users
+
 
     Args:
-        request (LoginRequest): _description_
-        db (Session, optional): _description_. Defaults to Depends(get_db).
+        request (LoginRequestAdmin): Login request with email and password
+        db (Session): Database session
 
     Raises:
-        HTTPException: _description_
-        HTTPException: _description_
-        HTTPException: _description_
+        HTTPException: When user not found, is not an admin, is deactivated, or credentials are incorrect
 
     Returns:
-        _type_: _description_
+        Token: Access token for successful authentication
     """
 
     user = db.query(User).filter(User.email  == request.email).first()
@@ -91,7 +115,7 @@ async def login_administrator(request: LoginRequestAdmin,
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User not found"
+            detail="Invalid Credentials"
         )
     
     if not user.is_admin and not user.is_super_admin:
@@ -99,12 +123,18 @@ async def login_administrator(request: LoginRequestAdmin,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You're a student, you don't have admin accesss"
         )
+    
+    if user.deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is deactivated"
+        )
 
     # Verify password
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect credentials"
+            detail="Invalid Credentials"
         )
 
     
@@ -134,23 +164,26 @@ async def login_administrator(request: LoginRequestAdmin,
 @router.post("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def register(request: AdminCreate, 
                    db: Session = Depends(get_db)):
-    """_summary_: Register a new admin 
+
+    """Register a new admin user with verification code validation
+    
+    Process:
+
     1. Check the verification code: valid & not expired 
     2. Check the information user entered is correct 
     3. Add user into the table 
-    4. Delete the veriication code
+    4. Delete the verification code
     5. Change the "verified" on temp_admins to true
     
     Args:
-        request (AdminCreate): _description_: email, school_id, firstname, lastname
-        db (Session, optional): _description_. Defaults to Depends(get_db).
+        request (AdminCreate): Admin creation request with email, school_id, firstname, lastname, code, password
+        db (Session): Database session
 
     Raises:
-        HTTPException: _description_
-        HTTPException: _description_
+        HTTPException: When verification code is invalid/expired, invitation not found, or information mismatch
 
     Returns:
-        _type_: _description_
+        dict: Success message
     """
     verification_code = db.query(VerificationCode).filter(
         VerificationCode.email == request.email,
@@ -158,14 +191,14 @@ async def register(request: AdminCreate,
         VerificationCode.expires_at > datetime.now()
     ).first()
     if not verification_code: 
-        raise HTTPException(status_code=400, detail="Code expired or incorrect code.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect information entered.")
     
     temp_admin = db.query(TempAdmin).filter(TempAdmin.email == request.email).first()
     if not temp_admin:
-        raise HTTPException(status_code=404, detail="Invitation not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found.")
 
     if (request.school_id != temp_admin.school_id) or (request.first_name != temp_admin.first_name) or (request.last_name != temp_admin.last_name): 
-        raise HTTPException(status_code=400, detail="Information entered is incorrect.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect information entered.")
     
     admin = User(
         user_id = temp_admin.user_id, 
@@ -182,6 +215,7 @@ async def register(request: AdminCreate,
     )
 
     temp_admin.verified = True
+
     db.add(admin)
     db.delete(verification_code)
     db.commit()
@@ -213,7 +247,7 @@ async def request_reset_password(request_body: ResetPasswordRequest,
     if request_body.email: # Admin is trying to reset password
         user = db.query(User).filter(User.email == request_body.email).first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
         code = str(uuid4())[:8]
         expires_at = datetime.now() + timedelta(minutes=180)
@@ -234,7 +268,7 @@ async def request_reset_password(request_body: ResetPasswordRequest,
     else: # Student is trying to reset password
         student = db.query(User).filter(User.username == request_body.username).first()
         if not student:
-            raise HTTPException(status_code=404, detail="User not found")   
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")   
         
         res = db.query(User).filter(User.school_id == student.school_id, User.is_admin == True).all()
         # send the reset password request to the admin's email
@@ -272,10 +306,10 @@ async def reset_admin_password(request: PasswordResetWithEmail, db: Session = De
     ).first()
 
     if not verification_code: 
-        raise HTTPException(status_code=400, detail="Code expired or incorrect code.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Code expired or incorrect code.")
     user = db.query(User).filter(User.email == request.email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     hashed_password = get_password_hash(request.new_password)
     user.hashed_password = hashed_password 
     db.delete(verification_code)
