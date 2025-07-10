@@ -21,7 +21,9 @@ router = APIRouter()
 @router.post("/login-stu", response_model=Token, status_code=status.HTTP_200_OK)
 async def login_student(request: LoginRequestStudent, 
                         db: Session = Depends(get_db)):
+
     """Student login endpoint that handles both username and email authentication
+
 
     Args:
         request (LoginRequestStudent): Login request with username/email and password
@@ -93,7 +95,9 @@ async def login_student(request: LoginRequestStudent,
 @router.post("/login-ada", response_model=Token, status_code=status.HTTP_200_OK)
 async def login_administrator(request: LoginRequestAdmin, 
                               db: Session = Depends(get_db)):
+
     """Administrator login endpoint for admin and super admin users
+
 
     Args:
         request (LoginRequestAdmin): Login request with email and password
@@ -160,9 +164,11 @@ async def login_administrator(request: LoginRequestAdmin,
 @router.post("/register-admin", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def register(request: AdminCreate, 
                    db: Session = Depends(get_db)):
+
     """Register a new admin user with verification code validation
     
     Process:
+
     1. Check the verification code: valid & not expired 
     2. Check the information user entered is correct 
     3. Add user into the table 
