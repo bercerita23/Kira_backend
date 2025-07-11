@@ -184,7 +184,7 @@ def send_admin_verification_email(
     
     return _send_email(
         email=email,
-        subject="Bercerita KIRA - Verification Code",
+        subject="Bercerita KIRA - Password Reset",
         body_html=body_html
     )
 
@@ -258,10 +258,10 @@ def send_reset_request_to_admin(
     """
     verification_link = f"{settings.FRONTEND_URL}/{frontend_route}?email={email}&username={username}"
     
-    main_content = f"Student {first_name} with school ID <strong>{school_id}</strong> and username <strong>{username}</strong> has requested a password reset."
+    main_content = f"Student {first_name} with username <strong>{username}</strong> has requested a password reset."
     
     additional_info = """
-    <p>This code will expire in 10 minutes. Please enter it promptly to complete your verification.</p>
+
     """
     
     body_html = _create_email_template(

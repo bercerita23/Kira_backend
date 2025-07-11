@@ -84,7 +84,7 @@ async def invite(
                             temp_admin.school_id,
                             temp_admin.first_name, 
                             temp_admin.last_name)
-    return {"message": f"Verification code was sent to {request.email}"}
+    return {"message": f"Invitation has been sent to {request.email}"}
 
 @router.post("/deactivate_admin", response_model=dict)
 async def deactivate_admin(request: AdminActivation, 
