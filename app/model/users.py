@@ -2,12 +2,6 @@ from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
-from app.model.schools import School
-from app.model.streaks import Streak
-from app.model.user_badges import UserBadge
-from app.model.points import Points
-from app.model.quizzes import Quiz
-from app.model.attempts import Attempt
 
 class User(Base):
     __tablename__ = "users"
