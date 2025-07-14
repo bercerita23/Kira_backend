@@ -2,7 +2,6 @@ from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer, F
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
-
 class Attempt(Base): 
     __tablename__ = "attempts"
 

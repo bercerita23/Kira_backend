@@ -4,6 +4,7 @@ from app.database.base_class import Base
 from datetime import datetime
 
 
+
 class Points(Base): 
     __tablename__ = "points"
     

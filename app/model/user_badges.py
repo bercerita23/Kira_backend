@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, PrimaryKey
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
+from app.model.badges import Badge
 
 
 class UserBadge(Base):

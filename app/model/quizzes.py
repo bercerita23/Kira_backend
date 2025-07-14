@@ -2,6 +2,9 @@ from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
+from app.model.schools import School
+from app.model.attempts import Attempt
+from app.model.questions import Question
 
 class Quiz(Base): 
     __tablename__ = "quizzes"
