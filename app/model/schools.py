@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
 
+
 class School(Base): 
     __tablename__ = "schools"
 
@@ -12,4 +13,5 @@ class School(Base):
     address = Column(String(255), nullable=True)
     telephone = Column(String(20), nullable=True)
 
-    users = relationship("User", back_populates="school") 
+    users = relationship("User", back_populates="school")
+    quizzes = relationship("Quiz", back_populates="school") 
