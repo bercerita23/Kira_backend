@@ -12,4 +12,5 @@ class School(Base):
     address = Column(String(255), nullable=True)
     telephone = Column(String(20), nullable=True)
 
-    users = relationship("User", back_populates="school") 
+    users = relationship("User", back_populates="school")
+    quizzes = relationship("Quiz", back_populates="school") 
