@@ -6,7 +6,7 @@ from datetime import datetime
 class Attempt(Base): 
     __tablename__ = "attempts"
 
-    attempt_id = Column(Integer, index=True, primary_key=True, autoincrement=True)
+    attempt_id = Column(Integer, index=True, primary_key=True, autoincrement=True, ondelete="CASCADE")
 
     # FK
     user_id = Column(String(12), ForeignKey("users.user_id"))
