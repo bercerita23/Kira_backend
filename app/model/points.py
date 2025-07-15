@@ -10,7 +10,7 @@ class Points(Base):
     
     #PK
     #FK
-    user_id = Column(String(12), ForeignKey("users.user_id"), primary_key=True, ondelete="CASCADE", index=True)
+    user_id = Column(String(12), ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True, index=True)
     
     
     # attributes
