@@ -8,6 +8,7 @@ from app.model.users import User
 from app.router.dependencies import *
 from typing import List
 from datetime import datetime
+from app.model.points import Points
 
 router = APIRouter()
 
@@ -38,9 +39,20 @@ async def create_student(student: StudentCreate,
         last_name=student.last_name,
         school_id=admin.school_id
     )
+    
+    # Create Points record for the new student
+    new_points = Points(
+        user_id=new_student.user_id,
+        regular_points=0,
+        premium_points=0
+    )
+    
+    # Add both records and commit once
     db.add(new_student)
+    db.add(new_points)
     db.commit()
     db.refresh(new_student)
+    
     return {"message": "Student created successfully", "user_id": new_student.user_id}
 
 @router.get("/students", response_model=dict, status_code=status.HTTP_200_OK)
