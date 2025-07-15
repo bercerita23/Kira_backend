@@ -13,3 +13,5 @@ class TempAdmin(Base):
     last_name = Column(String(255), nullable=True)
     verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now())
+    
+    school = relationship("School")

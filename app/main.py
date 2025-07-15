@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.model import users, schools, streaks, badges, user_badges, points, quizzes, questions, attempts, temp_admins, verification_codes
 from typing import Union
 
 from app.router import (
@@ -7,7 +8,6 @@ from app.router import (
     users_router, 
     super_admin_router, 
     admin_router,
-    school_router,
 )
 from app.config import settings
 
@@ -33,7 +33,6 @@ app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(users_router, prefix="/users", tags=["User"])
 app.include_router(super_admin_router, prefix="/super_admin", tags=["Super Admin"])
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
-app.include_router(school_router, prefix="/school", tags=["School"])   
 
 #####################
 ### Root Endpoint ###

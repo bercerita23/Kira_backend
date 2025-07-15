@@ -2,8 +2,7 @@ from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
-from app.model.schools import School
-from app.model.streaks import Streak
+
 class User(Base):
     __tablename__ = "users"
      
@@ -24,3 +23,6 @@ class User(Base):
     school = relationship("School", back_populates="users")
     streak = relationship("Streak", back_populates="user", uselist=False)
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
+    points = relationship("Points", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    quizzes = relationship("Quiz", back_populates="creator", cascade="all, delete-orphan")
+    attempts = relationship("Attempt", back_populates="user")

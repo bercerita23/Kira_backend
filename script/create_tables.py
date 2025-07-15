@@ -1,7 +1,6 @@
 # create_tables.py
 from sqlalchemy import create_engine
-from app import model  # make sure all models are loaded
-from app.model import users, schools, employee_codes, verification_codes, badges, user_badges,streaks
+from app.model import attempts, badges, questions, points, quizzes, schools, streaks, temp_admins, user_badges, users, verification_codes, attempts, points, questions, quizzes
 from sqlalchemy.ext.declarative import declarative_base
 from app.database.base_class import Base
 from app.config import settings
