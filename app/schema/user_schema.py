@@ -23,4 +23,11 @@ class UserBadgeOut(BaseModel):
 class UserBadgesOut(BaseModel):
     badges: List[UserBadgeOut]
 
+class PointsOut(BaseModel): 
+    premium_points: int
+    regular_points: int
 
+class StreakOut(BaseModel): 
+    current_streak: int
+    longest_streak: int
+    last_activity: datetime
