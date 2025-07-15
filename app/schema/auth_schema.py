@@ -13,7 +13,7 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     """Payload for Bearer Access Token"""
     sub: str  # usually user id
-    email: str = None
+    email: Optional[EmailStr] = None
     first_name: str
     role: str
     school_id: Optional[str] = None
