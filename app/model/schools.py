@@ -6,7 +6,7 @@ from datetime import datetime
 
 class School(Base): 
     __tablename__ = "schools"
-
+    #test
     school_id = Column(String(8), primary_key=True, index=True)
     email = Column(String(255), nullable=False, unique=True) #shang-chen.hsieh@sjsu.edu
     name = Column(String(255), nullable=False)
