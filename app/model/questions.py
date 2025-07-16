@@ -9,7 +9,8 @@ class Question(Base):
     __tablename__ = "questions"
     #test
     question_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    school_id = Column(String(8), nullable=False)
+    school_id = Column(String(8), ForeignKey("schools.school_id"), nullable=False)
+
 
     # attributes
     content = Column(String(255), nullable=False)
@@ -20,3 +21,4 @@ class Question(Base):
 
     # relationship
     school = relationship("School", back_populates="questions")
+    
