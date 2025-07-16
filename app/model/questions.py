@@ -18,7 +18,8 @@ class Question(Base):
     question_type = Column(String(50), nullable=False)
     points = Column(Integer, nullable=False)
     answer = Column(String(255), nullable=False)
-
+    image_url = Column(String(512), nullable=True)
+    
     # relationship
     school = relationship("School", back_populates="questions")
     
