@@ -1,11 +1,11 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer
+from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer, ARRAY
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
 
 class Quiz(Base): 
     __tablename__ = "quizzes"
-
+    #test
     quiz_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     
     # FK
@@ -14,12 +14,14 @@ class Quiz(Base):
 
     # attributes
     name = Column(String(255), nullable=False)
+    questions = Column(ARRAY(String(8)), nullable=False) 
     description = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=datetime.now)
+    expired_at = Column(DateTime, nullable=True)
+    is_locked = Column(Boolean, default=False)
 
     # relationship
     school = relationship("School", back_populates="quizzes")
     attempts = relationship("Attempt", back_populates="quiz", cascade="all, delete-orphan")
-    questions = relationship("Question", back_populates="quiz", cascade="all, delete-orphan")
     creator = relationship("User", back_populates="quizzes")
     
