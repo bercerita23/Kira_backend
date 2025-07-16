@@ -24,8 +24,7 @@ class UserBadgesOut(BaseModel):
     badges: List[UserBadgeOut]
 
 class PointsOut(BaseModel): 
-    premium_points: int
-    regular_points: int
+    points: int
 
 class StreakOut(BaseModel): 
     current_streak: int

@@ -39,4 +39,4 @@ app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 #####################
 @app.get("/")
 def read_root():
-    return {"KIRA: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': settings.API_VERSION}
+    return {"KIRA: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': settings.API_VERSION, 'Docs: ': "https://api.kiraclassroom.com/docs"}
