@@ -10,12 +10,10 @@ class Points(Base):
     
     #PK
     #FK
-    user_id = Column(String(12), ForeignKey("users.user_id"), primary_key=True, index=True)
-    
+    user_id = Column(String(12), ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True, index=True)
     
     # attributes
-    regular_points = Column(Integer, default=0, nullable=False) 
-    premium_points = Column(Integer, default=0, nullable=False)
+    points = Column(Integer, default=0, nullable=False) 
     # relationship
     user = relationship("User", back_populates="points") 
 

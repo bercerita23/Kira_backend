@@ -19,8 +19,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         settings.FRONTEND_URL,
-        "https://www.kira.bercerita.org",
-        "https://kira.bercerita.org",
+        "https://www.kiraclassroom.com",
+        "https://kiraclassroom.com",
         "http://localhost:3000",  # For local development
         "http://localhost:5173",  # For Vite development
     ],
@@ -39,4 +39,4 @@ app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 #####################
 @app.get("/")
 def read_root():
-    return {"KIRA: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': settings.API_VERSION}
+    return {"KIRA: ": settings.PROJECT_NAME, 'Environment: ': settings.ENV, 'Version: ': settings.API_VERSION, 'Docs: ': "https://api.kiraclassroom.com/docs"}

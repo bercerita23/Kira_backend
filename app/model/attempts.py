@@ -9,8 +9,8 @@ class Attempt(Base):
     attempt_id = Column(Integer, index=True, primary_key=True, autoincrement=True)
 
     # FK
-    user_id = Column(String(12), ForeignKey("users.user_id"))
-    quiz_id = Column(Integer, ForeignKey("quizzes.quiz_id"))
+    user_id = Column(String(12), ForeignKey("users.user_id", ondelete="CASCADE"))
+    quiz_id = Column(Integer, ForeignKey("quizzes.quiz_id", ondelete="CASCADE"))
 
     # attributes 
     score = Column(Float, nullable=False)

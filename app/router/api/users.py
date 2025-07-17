@@ -56,8 +56,7 @@ async def get_points(db: Session = Depends(get_db), user: User = Depends(get_cur
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Records not found")
     
     res = PointsOut(
-        premium_points = points.premium_points,
-        regular_points = points.regular_points
+        points = points.points
     )
     return res
 

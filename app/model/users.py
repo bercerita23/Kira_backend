@@ -25,4 +25,4 @@ class User(Base):
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
     points = relationship("Points", back_populates="user", uselist=False, cascade="all, delete-orphan")
     quizzes = relationship("Quiz", back_populates="creator", cascade="all, delete-orphan")
-    attempts = relationship("Attempt", back_populates="user")
+    attempts = relationship("Attempt", back_populates="user", cascade="all, delete-orphan")
