@@ -12,6 +12,7 @@ from app.model.points import Points
 from app.model.streaks import Streak
 from app.model import quizzes
 from app.model import questions
+from sqlalchemy import func
 
 
 router = APIRouter()
@@ -160,3 +161,71 @@ async def get_questions(quiz_id: str,
                 image_url=question.image_url
             ))
     return QuestionsOut(questions=res)
+
+@router.post("/submit-quiz", status_code=status.HTTP_201_CREATED)
+async def submit_quiz(
+    submission: QuizSubmission,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """
+    Submit a quiz attempt, record score and duration, increment streak if first attempt today.
+    """
+    # 1. Determine attempt number
+    last_attempt = (
+        db.query(quizzes.Attempt)
+        .filter(
+            quizzes.Attempt.user_id == user.user_id,
+            quizzes.Attempt.quiz_id == submission.quiz_id
+        )
+        .order_by(quizzes.Attempt.attempt_number.desc())
+        .first()
+    )
+    attempt_number = 1 if not last_attempt else last_attempt.attempt_number + 1
+
+    # 2. Check if this is the first attempt today (for streaks)
+    today = func.date(func.now())
+    first_today = not db.query(quizzes.Attempt).filter(
+        quizzes.Attempt.user_id == user.user_id,
+        func.date(quizzes.Attempt.attempted_at) == today
+    ).first()
+
+    # 3. If first attempt today, increment streak
+    streak = db.query(Streak).filter(Streak.user_id == user.user_id).first()
+    if first_today:
+        if streak:
+            streak.current_streak += 1
+            streak.last_activity = func.now()
+        else:
+            streak = Streak(user_id=user.user_id, current_streak=1, longest_streak=1, last_activity=func.now())
+            db.add(streak)
+        db.commit()
+
+    # 4. Store Attempt
+    new_attempt = quizzes.Attempt(
+        user_id=user.user_id,
+        quiz_id=submission.quiz_id,
+        score=submission.score,
+        attempt_number=attempt_number,
+        attempted_at=func.now()
+        # duration=submission.duration  # Do not store duration
+    )
+    db.add(new_attempt)
+    db.commit()
+    db.refresh(new_attempt)
+
+    # 5. Prepare response
+    return {
+        "attempt": {
+            "attempt_id": new_attempt.attempt_id,
+            "quiz_id": new_attempt.quiz_id,
+            "score": new_attempt.score,
+            "attempt_number": new_attempt.attempt_number,
+            "attempted_at": str(new_attempt.attempted_at),
+            "duration": new_attempt.duration
+        },
+        "streak": {
+            "current_streak": streak.current_streak if streak else 1,
+            "last_activity": str(streak.last_activity) if streak else None
+        }
+    }

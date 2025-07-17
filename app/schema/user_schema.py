@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime
 
 class UserOut(BaseModel):
@@ -17,8 +17,8 @@ class UserBadgeOut(BaseModel):
     earned_at: datetime
     is_viewed: bool
     name: str
-    description: str | None
-    icon_url: str | None
+    description: Union[str, None]
+    icon_url: Union[str, None]
 
 class UserBadgesOut(BaseModel):
     badges: List[UserBadgeOut]
@@ -62,3 +62,8 @@ class Question(BaseModel):
 
 class QuestionsOut(BaseModel): 
     questions: List[Question]
+
+class QuizSubmission(BaseModel):
+    quiz_id: int
+    score: float
+    duration: Optional[float] = None  # in seconds or minutes
