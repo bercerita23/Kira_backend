@@ -30,3 +30,35 @@ class StreakOut(BaseModel):
     current_streak: int
     longest_streak: int
     last_activity: datetime
+
+############
+### Quiz ###
+############
+class Quiz(BaseModel): 
+    quiz_id: int 
+    school_id: str
+    creator_id: str
+    name: str
+    questions: List[str]
+    description: str
+    created_at: datetime
+    expired_at: datetime
+    is_locked: bool
+
+class QuizzesOut(BaseModel): 
+    quizzes: List[Quiz]
+
+################
+### Question ###
+################
+class Question(BaseModel): 
+    question_id: int
+    content: str
+    options: List[str]
+    question_type: str
+    points: int
+    answer: str
+    image_url: Optional[str] = None
+
+class QuestionsOut(BaseModel): 
+    questions: List[Question]
