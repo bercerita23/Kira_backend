@@ -19,8 +19,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         settings.FRONTEND_URL,
-        "https://www.kira.bercerita.org",
-        "https://kira.bercerita.org",
+        "https://www.kiraclassroom.com",
+        "https://kiraclassroom.com",
         "http://localhost:3000",  # For local development
         "http://localhost:5173",  # For Vite development
     ],
