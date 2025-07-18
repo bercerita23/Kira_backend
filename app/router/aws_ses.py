@@ -6,7 +6,7 @@ import logging
 from app.config import settings
 
 # Constants
-SENDER = "Bercerita KIRA <dev-team@kira-api.com>"
+SENDER = "Bercerita KIRA <dev-team@kiraclassroom.com>"
 CONFIGURATION_SET = "ConfigSet"
 AWS_REGION = "us-east-2"
 CHARSET = "UTF-8"
