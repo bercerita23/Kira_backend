@@ -71,7 +71,7 @@ class QuizSubmission(BaseModel):
 class BestAttemptOut(BaseModel):
     quiz_id: int
     score: float
-    attempt_number: int
+    attempt_count: int
 
 class BestAttemptsOut(BaseModel):
     attempts: List[BestAttemptOut]
