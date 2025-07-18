@@ -165,22 +165,30 @@ async def get_questions(quiz_id: str,
 
 @router.get("/attemps", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """
-    Return the highest score and its attempt number for each quiz the current user has attempted.
-    """
     attempts = db.query(Attempt).filter(Attempt.user_id == user.user_id).all()
-    best_attempts = {}
+    quiz_attempts = {}
 
     for attempt in attempts:
         qid = attempt.quiz_id
-        if (qid not in best_attempts) or (attempt.score > best_attempts[qid]["score"]):
-            best_attempts[qid] = {
-                "quiz_id": qid,
-                "score": attempt.score,
-                "attempt_number": attempt.attempt_number
+        if qid not in quiz_attempts:
+            quiz_attempts[qid] = {
+                "scores": [attempt.score],
+                "count": 1
             }
+        else:
+            quiz_attempts[qid]["scores"].append(attempt.score)
+            quiz_attempts[qid]["count"] += 1
 
-    return BestAttemptsOut(attempts=list(best_attempts.values()))
+    best_attempts = [
+        {
+            "quiz_id": qid,
+            "score": max(data["scores"]),
+            "attempt_count": data["count"]
+        }
+        for qid, data in quiz_attempts.items()
+    ]
+
+    return BestAttemptsOut(attempts=best_attempts)
 
 @router.post("/submit-quiz", status_code=status.HTTP_201_CREATED)
 async def submit_quiz(
