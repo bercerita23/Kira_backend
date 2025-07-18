@@ -67,3 +67,11 @@ class QuizSubmission(BaseModel):
     quiz_id: int
     score: float
     duration: Optional[float] = None  # in seconds or minutes
+
+class BestAttemptOut(BaseModel):
+    quiz_id: int
+    score: float
+    attempt_number: int
+
+class BestAttemptsOut(BaseModel):
+    attempts: List[BestAttemptOut]
