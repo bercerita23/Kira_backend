@@ -70,7 +70,8 @@ class QuizSubmission(BaseModel):
 
 class BestAttemptOut(BaseModel):
     quiz_id: int
-    score: float
+    pass_count: int
+    fail_count: int
     attempt_count: int
 
 class BestAttemptsOut(BaseModel):

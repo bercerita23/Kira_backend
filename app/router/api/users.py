@@ -169,24 +169,29 @@ async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_c
     quiz_attempts = {}
 
     for attempt in attempts:
-        qid = attempt.quiz_id
+        qid = int(attempt.quiz_id)
+        pass_count = int(attempt.pass_count) if attempt.pass_count else 0
+        fail_count = int(attempt.fail_count) if attempt.fail_count else 0
+        
         if qid not in quiz_attempts:
             quiz_attempts[qid] = {
-                "scores": [attempt.score],
+                "attempts": [{"pass_count": pass_count, "fail_count": fail_count}],
                 "count": 1
             }
         else:
-            quiz_attempts[qid]["scores"].append(attempt.score)
+            quiz_attempts[qid]["attempts"].append({"pass_count": pass_count, "fail_count": fail_count})
             quiz_attempts[qid]["count"] += 1
 
-    best_attempts = [
-        {
-            "quiz_id": qid,
-            "score": max(data["scores"]),
-            "attempt_count": data["count"]
-        }
-        for qid, data in quiz_attempts.items()
-    ]
+    best_attempts = []
+    for qid, data in quiz_attempts.items():
+        # Find the attempt with the highest pass_count
+        best_attempt = max(data["attempts"], key=lambda x: x["pass_count"])
+        best_attempts.append(BestAttemptOut(
+            quiz_id=qid,
+            pass_count=best_attempt["pass_count"],
+            fail_count=best_attempt["fail_count"],
+            attempt_count=data["count"]
+        ))
 
     return BestAttemptsOut(attempts=best_attempts)
 
@@ -210,9 +215,21 @@ async def submit_quiz(
     if len(attempts) >= 2:
         raise HTTPException(status_code=400, detail="Maximum number of attempts reached for this quiz.")
 
-    previous_best_score = max([a.score for a in attempts], default=0)
-    new_score = submission.score
-    points_gained = max(0, new_score - previous_best_score)
+    # Calculate previous best pass_count from attempts
+    previous_best_pass = 0
+    for a in attempts:
+        pass_count = int(a.pass_count) if a.pass_count else 0
+        previous_best_pass = max(previous_best_pass, pass_count)
+    
+    # Calculate new pass_count and fail_count from submission score
+    # Assuming submission.score is a percentage (0-100) and we need to convert to pass/fail counts
+    # You might want to get total_questions from the quiz or submission
+    total_questions = 10  # This should come from the quiz or submission
+    new_pass_count = int((submission.score / 100) * total_questions)
+    new_fail_count = total_questions - new_pass_count
+    
+    # Calculate points gained based on improvement in pass_count
+    points_gained = max(0, new_pass_count - previous_best_pass)
 
     # 2. Update user's points if points_gained > 0
     if points_gained > 0:
@@ -248,9 +265,11 @@ async def submit_quiz(
     new_attempt = Attempt(
         user_id=user.user_id,
         quiz_id=submission.quiz_id,
-        score=submission.score,
         attempt_number=len(attempts) + 1,
-        attempted_at=func.now()
+        pass_count=new_pass_count,
+        fail_count=new_fail_count,
+        start_at=func.now(),
+        end_at=func.now()
     )
     db.add(new_attempt)
     db.commit()
@@ -261,17 +280,14 @@ async def submit_quiz(
 
     # 7. Prepare response
     return {
-        # "attempt": {
-        #     "attempt_id": new_attempt.attempt_id,
-        #     "quiz_id": new_attempt.quiz_id,
-        #     "score": new_attempt.score,
-        #     "attempt_number": new_attempt.attempt_number,
-        #     "attempted_at": str(new_attempt.attempted_at)
-        # },
-        "points_gained": points_gained
-        # "total_points": points_record.points if points_gained > 0 else db.query(Points).filter(Points.user_id == user.user_id).first().points,
-        # "streak": {
-        #     "current_streak": streak.current_streak if streak else 1,
-        #     "last_activity": str(streak.last_activity) if streak else None
-        # }
+        "points_gained": points_gained,
+        "attempt": {
+            "attempt_id": new_attempt.attempt_id,
+            "quiz_id": new_attempt.quiz_id,
+            "pass_count": new_attempt.pass_count,
+            "fail_count": new_attempt.fail_count,
+            "attempt_number": new_attempt.attempt_number,
+            "start_at": str(new_attempt.start_at),
+            "end_at": str(new_attempt.end_at)
+        }
     }
