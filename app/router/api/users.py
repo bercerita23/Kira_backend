@@ -163,7 +163,7 @@ async def get_questions(quiz_id: str,
             ))
     return QuestionsOut(questions=res)
 
-@router.get("/attemps", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
+@router.get("/attempts", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     attempts = db.query(Attempt).filter(Attempt.user_id == user.user_id).all()
     quiz_attempts = {}
@@ -196,17 +196,15 @@ async def submit_quiz(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    """
-    Submit a quiz attempt, enforce max 2 attempts, award only new points, and update user's points.
-    """
+
     # 1. Get all previous attempts for this user and quiz
     attempts = (
-        db.query(quizzes.Attempt)
+        db.query(Attempt)
         .filter(
-            quizzes.Attempt.user_id == user.user_id,
-            quizzes.Attempt.quiz_id == submission.quiz_id
+            Attempt.user_id == user.user_id,
+            Attempt.quiz_id == submission.quiz_id
         )
-        .order_by(quizzes.Attempt.attempt_number.asc())
+        .order_by(Attempt.attempt_number.asc())
         .all()
     )
     if len(attempts) >= 2:
@@ -219,6 +217,7 @@ async def submit_quiz(
     # 2. Update user's points if points_gained > 0
     if points_gained > 0:
         points_record = db.query(Points).filter(Points.user_id == user.user_id).first()
+        # TODO: remove this and add points table when a student or admin is created
         if not points_record:
             points_record = Points(user_id=user.user_id, points=0)
             db.add(points_record)
@@ -226,51 +225,53 @@ async def submit_quiz(
         db.commit()
 
     # 3. Determine attempt number
-    attempt_number = len(attempts) + 1
 
-    # 4. Check if this is the first attempt today (for streaks)
-    today = func.date(func.now())
-    first_today = not db.query(quizzes.Attempt).filter(
-        quizzes.Attempt.user_id == user.user_id,
-        func.date(quizzes.Attempt.attempted_at) == today
-    ).first()
-
-    # 5. If first attempt today, increment streak
-    streak = db.query(Streak).filter(Streak.user_id == user.user_id).first()
-    if first_today:
-        if streak:
-            streak.current_streak += 1
-            streak.last_activity = func.now()
-        else:
-            streak = Streak(user_id=user.user_id, current_streak=1, longest_streak=1, last_activity=func.now())
-            db.add(streak)
-        db.commit()
+    # # 4. Check if this is the first attempt today (for streaks)
+    # today = func.date(func.now())
+    # first_today = not db.query(quizzes.Attempt).filter(
+    #     quizzes.Attempt.user_id == user.user_id,
+    #     func.date(quizzes.Attempt.attempted_at) == today
+    # ).first()
+# 
+    # # 5. If first attempt today, increment streak
+    # streak = db.query(Streak).filter(Streak.user_id == user.user_id).first()
+    # if first_today:
+    #     if streak:
+    #         streak.current_streak += 1
+    #         streak.last_activity = func.now()
+    #     else:
+    #         streak = Streak(user_id=user.user_id, current_streak=1, longest_streak=1, last_activity=func.now())
+    #         db.add(streak)
+    #     db.commit()
 
     # 6. Store Attempt
-    new_attempt = quizzes.Attempt(
+    new_attempt = Attempt(
         user_id=user.user_id,
         quiz_id=submission.quiz_id,
         score=submission.score,
-        attempt_number=attempt_number,
+        attempt_number=len(attempts) + 1,
         attempted_at=func.now()
     )
     db.add(new_attempt)
     db.commit()
     db.refresh(new_attempt)
 
+    # TODO: badges
+
+
     # 7. Prepare response
     return {
-        "attempt": {
-            "attempt_id": new_attempt.attempt_id,
-            "quiz_id": new_attempt.quiz_id,
-            "score": new_attempt.score,
-            "attempt_number": new_attempt.attempt_number,
-            "attempted_at": str(new_attempt.attempted_at)
-        },
-        "points_gained": points_gained,
-        "total_points": points_record.points if points_gained > 0 else db.query(Points).filter(Points.user_id == user.user_id).first().points,
-        "streak": {
-            "current_streak": streak.current_streak if streak else 1,
-            "last_activity": str(streak.last_activity) if streak else None
-        }
+        # "attempt": {
+        #     "attempt_id": new_attempt.attempt_id,
+        #     "quiz_id": new_attempt.quiz_id,
+        #     "score": new_attempt.score,
+        #     "attempt_number": new_attempt.attempt_number,
+        #     "attempted_at": str(new_attempt.attempted_at)
+        # },
+        "points_gained": points_gained
+        # "total_points": points_record.points if points_gained > 0 else db.query(Points).filter(Points.user_id == user.user_id).first().points,
+        # "streak": {
+        #     "current_streak": streak.current_streak if streak else 1,
+        #     "last_activity": str(streak.last_activity) if streak else None
+        # }
     }

@@ -19,6 +19,7 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     username = Column(String(50), nullable=True, unique=True)
     deactivated = Column(Boolean, default=False)
+    grade = Column(String(50), nullable=True)
     
     school = relationship("School", back_populates="users")
     streak = relationship("Streak", back_populates="user", uselist=False)
