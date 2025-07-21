@@ -62,7 +62,6 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
     Returns:
         _type_: _description_ a list of students in JSON format with 200
     """
-    print("admin is: ", admin)
     students = db.query(User).join(Points).filter(User.school_id == admin.school_id, User.is_admin == False).all()
     res = {
         s.username: {
@@ -72,6 +71,7 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
             "created_at": s.created_at,
             "last_login_time": s.last_login_time,
             "deactivated": s.deactivated,
+            "grade": s.grade,
             "points": s.points.points
         }
         for s in students
