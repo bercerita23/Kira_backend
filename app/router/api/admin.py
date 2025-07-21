@@ -72,7 +72,7 @@ async def get_students(db: Session = Depends(get_db), admin: User = Depends(get_
             "created_at": s.created_at,
             "last_login_time": s.last_login_time,
             "deactivated": s.deactivated,
-            "points": s.points
+            "points": s.points.points
         }
         for s in students
     }
