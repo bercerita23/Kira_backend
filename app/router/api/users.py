@@ -17,43 +17,54 @@ from sqlalchemy import func
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
+from app.router.background_task import check_and_award_badges
 
 
 router = APIRouter()
 
-BADGE_THRESHOLDS = [
-    ("B001", 50),
-    ("B002", 100),
-    ("B003", 150),
-    ("B004", 250),
-    ("B005", 350),
-]
 
-def check_and_award_badges(user_id: str):
-    # Create a new DB session for the background task
-    SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
-    db = SessionLocal()
-    try:
-        points_record = db.query(Points).filter(Points.user_id == user_id).first()
-        if not points_record:
-            return
-        user_points = points_record.points
-        for badge_id, threshold in BADGE_THRESHOLDS:
-            has_badge = db.query(UserBadge).filter(
-                UserBadge.user_id == user_id,
-                UserBadge.badge_id == badge_id
-            ).first()
-            if user_points >= threshold and not has_badge:
-                new_badge = UserBadge(
-                    user_id=user_id,
-                    badge_id=badge_id,
-                    earned_at=func.now(),
-                    is_viewed=False
-                )
-                db.add(new_badge)
-        db.commit()
-    finally:
-        db.close()
+@router.get("/badges/all", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the badges information in the database."""
+    badges = db.query(Badge).all()
+    badge_list = [
+        {
+            "badge_id": b.badge_id,
+            "name": b.name,
+            "bahasa_indonesia_name": b.bahasa_indonesia_name,
+            "description": b.description,
+            "icon_url": b.icon_url,
+            "created_at": b.created_at,
+            "earned_by_points": b.earned_by_points,
+            "points_required": b.points_required
+        }
+        for b in badges
+    ]
+    return {"badges": badge_list}
+
+@router.get("/badges/not-viewed", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
+async def get_not_viewed_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the badges that a user has not viewed."""
+    badges = db.query(UserBadge).join(Badge).filter(UserBadge.user_id == user.user_id, UserBadge.is_viewed == False).all()
+    earned_badges = [UserBadgeOut(
+        badge_id=b.badge_id,
+        earned_at=b.earned_at,
+        is_viewed=b.is_viewed,
+        name=b.badge.name,
+        description=b.badge.description,
+        icon_url=b.badge.icon_url
+    ) for b in badges]
+    return UserBadgesOut(badges=earned_badges)
+
+@router.patch("/badges/{badge_id}/viewed", response_model=dict, status_code=status.HTTP_200_OK)
+async def mark_badge_as_viewed(badge_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Mark a badge as viewed."""
+    user_badge = db.query(UserBadge).filter(UserBadge.user_id == user.user_id, UserBadge.badge_id == badge_id).first()
+    if not user_badge:
+        raise HTTPException(status_code=404, detail="Badge not found for user")
+    user_badge.is_viewed = True
+    db.commit()
+    return {"message": "Badge marked as viewed"}
 
 @router.get("/badges", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
 async def get_a_user_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -273,9 +284,6 @@ async def submit_quiz(
         points_record.points += points_gained
         db.commit()
 
-    # Add background task to check and award badges
-    background_tasks.add_task(check_and_award_badges, user.user_id)
-
     # 6. Store Attempt
     new_attempt = Attempt(
         user_id=user.user_id,
@@ -289,6 +297,11 @@ async def submit_quiz(
     db.add(new_attempt)
     db.commit()
     db.refresh(new_attempt)
+
+    #######################
+    ### Background Task ###
+    #######################
+    background_tasks.add_task(check_and_award_badges, user.user_id)
 
     # 7. Prepare response
     return {
