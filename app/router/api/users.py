@@ -201,7 +201,6 @@ async def submit_quiz(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-
     # 1. Get all previous attempts for this user and quiz
     attempts = (
         db.query(Attempt)
@@ -221,12 +220,8 @@ async def submit_quiz(
         pass_count = int(a.pass_count) if a.pass_count else 0
         previous_best_pass = max(previous_best_pass, pass_count)
     
-    # Calculate new pass_count and fail_count from submission score
-    # Assuming submission.score is a percentage (0-100) and we need to convert to pass/fail counts
-    # You might want to get total_questions from the quiz or submission
-    total_questions = 10  # This should come from the quiz or submission
-    new_pass_count = int((submission.score / 100) * total_questions)
-    new_fail_count = total_questions - new_pass_count
+    new_pass_count = submission.pass_count
+    new_fail_count = submission.fail_count
     
     # Calculate points gained based on improvement in pass_count
     points_gained = max(0, new_pass_count - previous_best_pass)
@@ -234,32 +229,11 @@ async def submit_quiz(
     # 2. Update user's points if points_gained > 0
     if points_gained > 0:
         points_record = db.query(Points).filter(Points.user_id == user.user_id).first()
-        # TODO: remove this and add points table when a student or admin is created
         if not points_record:
             points_record = Points(user_id=user.user_id, points=0)
             db.add(points_record)
         points_record.points += points_gained
         db.commit()
-
-    # 3. Determine attempt number
-
-    # # 4. Check if this is the first attempt today (for streaks)
-    # today = func.date(func.now())
-    # first_today = not db.query(quizzes.Attempt).filter(
-    #     quizzes.Attempt.user_id == user.user_id,
-    #     func.date(quizzes.Attempt.attempted_at) == today
-    # ).first()
-# 
-    # # 5. If first attempt today, increment streak
-    # streak = db.query(Streak).filter(Streak.user_id == user.user_id).first()
-    # if first_today:
-    #     if streak:
-    #         streak.current_streak += 1
-    #         streak.last_activity = func.now()
-    #     else:
-    #         streak = Streak(user_id=user.user_id, current_streak=1, longest_streak=1, last_activity=func.now())
-    #         db.add(streak)
-    #     db.commit()
 
     # 6. Store Attempt
     new_attempt = Attempt(
@@ -268,15 +242,12 @@ async def submit_quiz(
         attempt_number=len(attempts) + 1,
         pass_count=new_pass_count,
         fail_count=new_fail_count,
-        start_at=func.now(),
-        end_at=func.now()
+        start_at=submission.start_at,
+        end_at=submission.end_at
     )
     db.add(new_attempt)
     db.commit()
     db.refresh(new_attempt)
-
-    # TODO: badges
-
 
     # 7. Prepare response
     return {
