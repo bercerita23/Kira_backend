@@ -14,9 +14,46 @@ from app.model import quizzes
 from app.model import questions
 from app.model.attempts import *
 from sqlalchemy import func
+from fastapi import BackgroundTasks
+from app.database.db import get_local_session
+from app.database.session import SQLALCHEMY_DATABASE_URL
 
 
 router = APIRouter()
+
+BADGE_THRESHOLDS = [
+    ("B001", 50),
+    ("B002", 100),
+    ("B003", 150),
+    ("B004", 250),
+    ("B005", 350),
+]
+
+def check_and_award_badges(user_id: str):
+    # Create a new DB session for the background task
+    SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
+    db = SessionLocal()
+    try:
+        points_record = db.query(Points).filter(Points.user_id == user_id).first()
+        if not points_record:
+            return
+        user_points = points_record.points
+        for badge_id, threshold in BADGE_THRESHOLDS:
+            has_badge = db.query(UserBadge).filter(
+                UserBadge.user_id == user_id,
+                UserBadge.badge_id == badge_id
+            ).first()
+            if user_points >= threshold and not has_badge:
+                new_badge = UserBadge(
+                    user_id=user_id,
+                    badge_id=badge_id,
+                    earned_at=func.now(),
+                    is_viewed=False
+                )
+                db.add(new_badge)
+        db.commit()
+    finally:
+        db.close()
 
 @router.get("/badges", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
 async def get_a_user_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -198,6 +235,7 @@ async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_c
 @router.post("/submit-quiz", status_code=status.HTTP_201_CREATED)
 async def submit_quiz(
     submission: QuizSubmission,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
@@ -234,6 +272,9 @@ async def submit_quiz(
             db.add(points_record)
         points_record.points += points_gained
         db.commit()
+
+    # Add background task to check and award badges
+    background_tasks.add_task(check_and_award_badges, user.user_id)
 
     # 6. Store Attempt
     new_attempt = Attempt(
