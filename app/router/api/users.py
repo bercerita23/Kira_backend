@@ -14,9 +14,57 @@ from app.model import quizzes
 from app.model import questions
 from app.model.attempts import *
 from sqlalchemy import func
+from fastapi import BackgroundTasks
+from app.database.db import get_local_session
+from app.database.session import SQLALCHEMY_DATABASE_URL
+from app.router.background_task import check_and_award_badges
 
 
 router = APIRouter()
+
+
+@router.get("/badges/all", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the badges information in the database."""
+    badges = db.query(Badge).all()
+    badge_list = [
+        {
+            "badge_id": b.badge_id,
+            "name": b.name,
+            "bahasa_indonesia_name": b.bahasa_indonesia_name,
+            "description": b.description,
+            "icon_url": b.icon_url,
+            "created_at": b.created_at,
+            "earned_by_points": b.earned_by_points,
+            "points_required": b.points_required
+        }
+        for b in badges
+    ]
+    return {"badges": badge_list}
+
+@router.get("/badges/not-viewed", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
+async def get_not_viewed_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the badges that a user has not viewed."""
+    badges = db.query(UserBadge).join(Badge).filter(UserBadge.user_id == user.user_id, UserBadge.is_viewed == False).all()
+    earned_badges = [UserBadgeOut(
+        badge_id=b.badge_id,
+        earned_at=b.earned_at,
+        is_viewed=b.is_viewed,
+        name=b.badge.name,
+        description=b.badge.description,
+        icon_url=b.badge.icon_url
+    ) for b in badges]
+    return UserBadgesOut(badges=earned_badges)
+
+@router.patch("/badges/{badge_id}/viewed", response_model=dict, status_code=status.HTTP_200_OK)
+async def mark_badge_as_viewed(badge_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Mark a badge as viewed."""
+    user_badge = db.query(UserBadge).filter(UserBadge.user_id == user.user_id, UserBadge.badge_id == badge_id).first()
+    if not user_badge:
+        raise HTTPException(status_code=404, detail="Badge not found for user")
+    user_badge.is_viewed = True
+    db.commit()
+    return {"message": "Badge marked as viewed"}
 
 @router.get("/badges", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
 async def get_a_user_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -163,50 +211,69 @@ async def get_questions(quiz_id: str,
             ))
     return QuestionsOut(questions=res)
 
-@router.get("/attemps", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
+@router.get("/attempts", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """
-    Return the highest score and its attempt number for each quiz the current user has attempted.
-    """
     attempts = db.query(Attempt).filter(Attempt.user_id == user.user_id).all()
-    best_attempts = {}
+    quiz_attempts = {}
 
     for attempt in attempts:
-        qid = attempt.quiz_id
-        if (qid not in best_attempts) or (attempt.score > best_attempts[qid]["score"]):
-            best_attempts[qid] = {
-                "quiz_id": qid,
-                "score": attempt.score,
-                "attempt_number": attempt.attempt_number
+        qid = int(attempt.quiz_id)
+        pass_count = int(attempt.pass_count) if attempt.pass_count else 0
+        fail_count = int(attempt.fail_count) if attempt.fail_count else 0
+        
+        if qid not in quiz_attempts:
+            quiz_attempts[qid] = {
+                "attempts": [{"pass_count": pass_count, "fail_count": fail_count}],
+                "count": 1
             }
+        else:
+            quiz_attempts[qid]["attempts"].append({"pass_count": pass_count, "fail_count": fail_count})
+            quiz_attempts[qid]["count"] += 1
 
-    return BestAttemptsOut(attempts=list(best_attempts.values()))
+    best_attempts = []
+    for qid, data in quiz_attempts.items():
+        # Find the attempt with the highest pass_count
+        best_attempt = max(data["attempts"], key=lambda x: x["pass_count"])
+        best_attempts.append(BestAttemptOut(
+            quiz_id=qid,
+            pass_count=best_attempt["pass_count"],
+            fail_count=best_attempt["fail_count"],
+            attempt_count=data["count"]
+        ))
+
+    return BestAttemptsOut(attempts=best_attempts)
 
 @router.post("/submit-quiz", status_code=status.HTTP_201_CREATED)
 async def submit_quiz(
     submission: QuizSubmission,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    """
-    Submit a quiz attempt, enforce max 2 attempts, award only new points, and update user's points.
-    """
     # 1. Get all previous attempts for this user and quiz
     attempts = (
-        db.query(quizzes.Attempt)
+        db.query(Attempt)
         .filter(
-            quizzes.Attempt.user_id == user.user_id,
-            quizzes.Attempt.quiz_id == submission.quiz_id
+            Attempt.user_id == user.user_id,
+            Attempt.quiz_id == submission.quiz_id
         )
-        .order_by(quizzes.Attempt.attempt_number.asc())
+        .order_by(Attempt.attempt_number.asc())
         .all()
     )
     if len(attempts) >= 2:
         raise HTTPException(status_code=400, detail="Maximum number of attempts reached for this quiz.")
 
-    previous_best_score = max([a.score for a in attempts], default=0)
-    new_score = submission.score
-    points_gained = max(0, new_score - previous_best_score)
+    # Calculate previous best pass_count from attempts
+    previous_best_pass = 0
+    for a in attempts:
+        pass_count = int(a.pass_count) if a.pass_count else 0
+        previous_best_pass = max(previous_best_pass, pass_count)
+    
+    new_pass_count = submission.pass_count
+    new_fail_count = submission.fail_count
+    
+    # Calculate points gained based on improvement in pass_count
+    points_gained = max(0, new_pass_count - previous_best_pass)
 
     # 2. Update user's points if points_gained > 0
     if points_gained > 0:
@@ -217,52 +284,35 @@ async def submit_quiz(
         points_record.points += points_gained
         db.commit()
 
-    # 3. Determine attempt number
-    attempt_number = len(attempts) + 1
-
-    # 4. Check if this is the first attempt today (for streaks)
-    today = func.date(func.now())
-    first_today = not db.query(quizzes.Attempt).filter(
-        quizzes.Attempt.user_id == user.user_id,
-        func.date(quizzes.Attempt.attempted_at) == today
-    ).first()
-
-    # 5. If first attempt today, increment streak
-    streak = db.query(Streak).filter(Streak.user_id == user.user_id).first()
-    if first_today:
-        if streak:
-            streak.current_streak += 1
-            streak.last_activity = func.now()
-        else:
-            streak = Streak(user_id=user.user_id, current_streak=1, longest_streak=1, last_activity=func.now())
-            db.add(streak)
-        db.commit()
-
     # 6. Store Attempt
-    new_attempt = quizzes.Attempt(
+    new_attempt = Attempt(
         user_id=user.user_id,
         quiz_id=submission.quiz_id,
-        score=submission.score,
-        attempt_number=attempt_number,
-        attempted_at=func.now()
+        attempt_number=len(attempts) + 1,
+        pass_count=new_pass_count,
+        fail_count=new_fail_count,
+        start_at=submission.start_at,
+        end_at=submission.end_at
     )
     db.add(new_attempt)
     db.commit()
     db.refresh(new_attempt)
 
+    #######################
+    ### Background Task ###
+    #######################
+    background_tasks.add_task(check_and_award_badges, user.user_id)
+
     # 7. Prepare response
     return {
+        "points_gained": points_gained,
         "attempt": {
             "attempt_id": new_attempt.attempt_id,
             "quiz_id": new_attempt.quiz_id,
-            "score": new_attempt.score,
+            "pass_count": new_attempt.pass_count,
+            "fail_count": new_attempt.fail_count,
             "attempt_number": new_attempt.attempt_number,
-            "attempted_at": str(new_attempt.attempted_at)
-        },
-        "points_gained": points_gained,
-        "total_points": points_record.points if points_gained > 0 else db.query(Points).filter(Points.user_id == user.user_id).first().points,
-        "streak": {
-            "current_streak": streak.current_streak if streak else 1,
-            "last_activity": str(streak.last_activity) if streak else None
+            "start_at": str(new_attempt.start_at),
+            "end_at": str(new_attempt.end_at)
         }
     }

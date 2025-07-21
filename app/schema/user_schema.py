@@ -65,13 +65,16 @@ class QuestionsOut(BaseModel):
 
 class QuizSubmission(BaseModel):
     quiz_id: int
-    score: float
-    duration: Optional[float] = None  # in seconds or minutes
+    pass_count: int
+    fail_count: int
+    start_at: datetime
+    end_at: datetime
 
 class BestAttemptOut(BaseModel):
     quiz_id: int
-    score: float
-    attempt_number: int
+    pass_count: int
+    fail_count: int
+    attempt_count: int
 
 class BestAttemptsOut(BaseModel):
     attempts: List[BestAttemptOut]

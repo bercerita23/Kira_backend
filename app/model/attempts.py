@@ -13,9 +13,11 @@ class Attempt(Base):
     quiz_id = Column(Integer, ForeignKey("quizzes.quiz_id", ondelete="CASCADE"))
 
     # attributes 
-    score = Column(Float, nullable=False)
     attempt_number = Column(Integer, nullable=False) 
-    attempted_at = Column(DateTime, nullable=False)
+    pass_count = Column(Integer)
+    fail_count = Column(Integer)
+    start_at = Column(DateTime)
+    end_at = Column(DateTime)
 
     # relationship 
     user = relationship("User", back_populates="attempts")
