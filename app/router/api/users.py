@@ -214,7 +214,7 @@ async def get_questions(quiz_id: str,
 @router.get("/attempts", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     attempts = db.query(Attempt).options(joinedload(Attempt.quiz)).filter(Attempt.user_id == user.user_id).all()
-    quiz_attempts = {} # ket= quiz_id, value= attempt object
+    quiz_attempts = {} # ket= quiz_id, value= list of attempt object
 
     for attempt in attempts:
         qid = int(attempt.quiz_id)
