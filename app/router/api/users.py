@@ -213,32 +213,27 @@ async def get_questions(quiz_id: str,
 
 @router.get("/attempts", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    attempts = db.query(Attempt).filter(Attempt.user_id == user.user_id).all()
-    quiz_attempts = {}
+    attempts = db.query(Attempt).options(joinedload(Attempt.quiz)).filter(Attempt.user_id == user.user_id).all()
+    quiz_attempts = {} # ket= quiz_id, value= attempt object
 
     for attempt in attempts:
         qid = int(attempt.quiz_id)
-        pass_count = int(attempt.pass_count) if attempt.pass_count else 0
-        fail_count = int(attempt.fail_count) if attempt.fail_count else 0
-        
         if qid not in quiz_attempts:
-            quiz_attempts[qid] = {
-                "attempts": [{"pass_count": pass_count, "fail_count": fail_count}],
-                "count": 1
-            }
-        else:
-            quiz_attempts[qid]["attempts"].append({"pass_count": pass_count, "fail_count": fail_count})
-            quiz_attempts[qid]["count"] += 1
+            quiz_attempts[qid] = []
+        quiz_attempts[qid].append(attempt)
 
     best_attempts = []
-    for qid, data in quiz_attempts.items():
-        # Find the attempt with the highest pass_count
-        best_attempt = max(data["attempts"], key=lambda x: x["pass_count"])
+    for qid, attempt_list in quiz_attempts.items():
+        best_attempt = max(attempt_list, key=lambda x: x.pass_count or 0)
+        quiz_name = best_attempt.quiz.name if best_attempt.quiz else ""
+        completed_at = best_attempt.end_at
         best_attempts.append(BestAttemptOut(
             quiz_id=qid,
-            pass_count=best_attempt["pass_count"],
-            fail_count=best_attempt["fail_count"],
-            attempt_count=data["count"]
+            pass_count=best_attempt.pass_count or 0,
+            fail_count=best_attempt.fail_count or 0,
+            attempt_count=len(attempt_list),
+            quiz_name=quiz_name,
+            completed_at=completed_at
         ))
 
     return BestAttemptsOut(attempts=best_attempts)
