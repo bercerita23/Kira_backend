@@ -19,7 +19,8 @@ from sqlalchemy import func
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
-from app.router.background_task import check_and_award_badges
+from app.router.background.badges_task import check_and_award_badges
+from app.router.background.achievement_task import check_achievement_and_award
 
 
 router = APIRouter()
