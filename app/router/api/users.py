@@ -288,14 +288,14 @@ async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_c
     for qid, attempt_list in quiz_attempts.items():
         best_attempt = max(attempt_list, key=lambda x: x.pass_count or 0)
         quiz_name = best_attempt.quiz.name if best_attempt.quiz else ""
-        completed_at = best_attempt.end_at
+        duration_in_sec = int((best_attempt.end_at - best_attempt.start_at).total_seconds())
         best_attempts.append(BestAttemptOut(
             quiz_id=qid,
             pass_count=best_attempt.pass_count or 0,
             fail_count=best_attempt.fail_count or 0,
             attempt_count=len(attempt_list),
             quiz_name=quiz_name,
-            completed_at=completed_at
+            duration_in_sec=duration_in_sec
         ))
 
     return BestAttemptsOut(attempts=best_attempts)
