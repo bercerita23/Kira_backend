@@ -360,6 +360,7 @@ async def submit_quiz(
     #######################
     ### Background Task ###
     #######################
+    background_tasks.add_task(check_achievement_and_award, user.user_id)
     background_tasks.add_task(check_and_award_badges, user.user_id)
 
     # 7. Prepare response
