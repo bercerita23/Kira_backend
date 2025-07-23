@@ -100,6 +100,10 @@ def check_achievement_and_award(user_id: str):
         ##############
         # description: Complete all quizzes for 5 weeks in a row (Attempt all 15 quizzes)
         if 'ACH004' not in unlocked_set: 
+            temp = db.query(Attempt).filter(Attempt.user_id == user_id).all() # all the attempt of this user
+            # brainstorm: if the quiz id is consecutive thorugh out the attempts, the user is guicci
+            # reduce the problem to two weeks: only need 6 consecutive quiz id now 
+            # user attemp: 1 2 3   5 6 7 8 9 10     12 13 14
             pass
 
         ##############
@@ -155,7 +159,7 @@ def check_achievement_and_award(user_id: str):
                 db.commit() 
                 db.refresh(new_achievement)
                 break
-            
+
     finally: 
         db.close()
     pass
