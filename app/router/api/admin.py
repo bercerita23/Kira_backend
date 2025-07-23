@@ -20,8 +20,7 @@ async def create_student(student: StudentCreate,
     1. username
     2. a password
     3. first name 
-    4. last ame 
-    5. and a username
+    4. last name
 
     Args:
         student (StudentCreate): _description_
@@ -43,8 +42,7 @@ async def create_student(student: StudentCreate,
     # Create Points record for the new student
     new_points = Points(
         user_id=new_student.user_id,
-        regular_points=0,
-        premium_points=0
+        points=0,
     )
     
     # Add both records and commit once
