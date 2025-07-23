@@ -15,7 +15,7 @@ class UserListResponse(BaseModel):
 class UserBadgeOut(BaseModel):
     badge_id: str
     earned_at: datetime
-    view_count: int
+    view_count: Optional[int] = None
     name: str
     description: Union[str, None]
     icon_url: Union[str, None]
@@ -105,7 +105,7 @@ class SingleUserAchievement(BaseModel):
     points: int
     
     completed_at: datetime
-    view_count: int
+    view_count: Optional[int] = None
 
 class UserAchievementsOut(BaseModel): 
     user_achievements: List[SingleUserAchievement]
