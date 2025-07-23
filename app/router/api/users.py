@@ -15,7 +15,7 @@ from app.model import questions
 from app.model.attempts import *
 from app.model.user_achievements import *
 from app.model.achievements import *
-from sqlalchemy import func
+from sqlalchemy import func, asc
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
@@ -95,7 +95,7 @@ async def get_all_achievements(db: Session = Depends(get_db), user: User = Depen
     Returns:
         _type_: _description_
     """
-    achievements = db.query(Achievement).all()
+    achievements = db.query(Achievement).order_by(asc(Achievement.points)).all()
     achievement_list = [
         SingleAchievement(
             achievement_id=a.id, 
@@ -334,16 +334,12 @@ async def submit_quiz(
     # Calculate points gained based on improvement in pass_count
     points_gained = max(0, new_pass_count - previous_best_pass)
 
-    # 2. Update user's points if points_gained > 0
+    # 2. Ensure user's Points record exists and update points if needed
+    points_record = db.query(Points).filter(Points.user_id == user.user_id).first()
     if points_gained > 0:
-        points_record = db.query(Points).filter(Points.user_id == user.user_id).first()
-        if not points_record:
-            points_record = Points(user_id=user.user_id, points=0)
-            db.add(points_record)
         points_record.points += points_gained
-        db.commit()
 
-    # 6. Store Attempt
+    # 3. Store Attempt
     new_attempt = Attempt(
         user_id=user.user_id,
         quiz_id=submission.quiz_id,
@@ -356,6 +352,7 @@ async def submit_quiz(
     db.add(new_attempt)
     db.commit()
     db.refresh(new_attempt)
+    db.refresh(points_record)
 
     #######################
     ### Background Task ###
@@ -363,16 +360,7 @@ async def submit_quiz(
     background_tasks.add_task(check_achievement_and_award, user.user_id)
     background_tasks.add_task(check_and_award_badges, user.user_id)
 
-    # 7. Prepare response
+    # 5. Prepare response using Pydantic model for serialization
     return {
-        "points_gained": points_gained,
-        "attempt": {
-            "attempt_id": new_attempt.attempt_id,
-            "quiz_id": new_attempt.quiz_id,
-            "pass_count": new_attempt.pass_count,
-            "fail_count": new_attempt.fail_count,
-            "attempt_number": new_attempt.attempt_number,
-            "start_at": str(new_attempt.start_at),
-            "end_at": str(new_attempt.end_at)
-        }
+        "message": "Quiz result submitted."
     }
