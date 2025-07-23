@@ -295,7 +295,8 @@ async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_c
             fail_count=best_attempt.fail_count or 0,
             attempt_count=len(attempt_list),
             quiz_name=quiz_name,
-            duration_in_sec=duration_in_sec
+            duration_in_sec=duration_in_sec,
+            completed_at=best_attempt.end_at
         ))
 
     return BestAttemptsOut(attempts=best_attempts)

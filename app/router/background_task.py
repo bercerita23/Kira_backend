@@ -1,6 +1,7 @@
 from app.model.points import Points
 from app.model.user_badges import UserBadge
 from app.model.badges import Badge
+from app.model.achievements import *
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import func
@@ -55,4 +56,10 @@ def check_and_award_badges(user_id: str):
 ###################
 
 def check_achievement_and_award(): 
-    pass
+    SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
+    db = SessionLocal()
+    # try:
+    #     # Fetch all badge requirements
+    #     achievement_info = db.query(Achievement).all()
+    #     achievement_info_map = {for ach in achievement_info}
+    # pass
