@@ -40,7 +40,7 @@ def check_and_award_badges(user_id: str):
                         user_id=user_id,
                         badge_id=badge_id,
                         earned_at=func.now(),
-                        is_viewed=False
+                        view_count=0
                     )
                 )
 
@@ -50,3 +50,9 @@ def check_and_award_badges(user_id: str):
     finally:
         db.close()
 
+###################
+### Achievement ###
+###################
+
+def check_achievement_and_award(): 
+    pass
