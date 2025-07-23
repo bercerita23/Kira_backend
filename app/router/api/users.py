@@ -13,6 +13,8 @@ from app.model.streaks import Streak
 from app.model import quizzes
 from app.model import questions
 from app.model.attempts import *
+from app.model.user_achievements import *
+from app.model.achievements import *
 from sqlalchemy import func
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
@@ -42,30 +44,6 @@ async def get_all_badges(db: Session = Depends(get_db), user: User = Depends(get
     ]
     return {"badges": badge_list}
 
-@router.get("/badges/not-viewed", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
-async def get_not_viewed_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Get all the badges that a user has not viewed."""
-    badges = db.query(UserBadge).join(Badge).filter(UserBadge.user_id == user.user_id, UserBadge.is_viewed == False).all()
-    earned_badges = [UserBadgeOut(
-        badge_id=b.badge_id,
-        earned_at=b.earned_at,
-        is_viewed=b.is_viewed,
-        name=b.badge.name,
-        description=b.badge.description,
-        icon_url=b.badge.icon_url
-    ) for b in badges]
-    return UserBadgesOut(badges=earned_badges)
-
-@router.patch("/badges/{badge_id}/viewed", response_model=dict, status_code=status.HTTP_200_OK)
-async def mark_badge_as_viewed(badge_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Mark a badge as viewed."""
-    user_badge = db.query(UserBadge).filter(UserBadge.user_id == user.user_id, UserBadge.badge_id == badge_id).first()
-    if not user_badge:
-        raise HTTPException(status_code=404, detail="Badge not found for user")
-    user_badge.is_viewed = True
-    db.commit()
-    return {"message": "Badge marked as viewed"}
-
 @router.get("/badges", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
 async def get_a_user_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Get all the badges that a user has earned
@@ -81,13 +59,97 @@ async def get_a_user_badges(db: Session = Depends(get_db), user: User = Depends(
     earned_badges = [UserBadgeOut(
             badge_id=b.badge_id,
             earned_at=b.earned_at,
-            is_viewed=b.is_viewed,
+            view_count=b.view_count,
             name=b.badge.name,
             description=b.badge.description,
             icon_url=b.badge.icon_url
         ) for b in badges]
-    
+    for b in badges: 
+        b.view_count += 1
+
+    db.commit()
     return UserBadgesOut(badges=earned_badges)
+
+@router.get("/badges/notification", response_model=UserBadgesOut, status_code=status.HTTP_200_OK)
+async def get_not_viewed_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the badges that a user has not viewed. ONLY used for notification."""
+    badges = db.query(UserBadge).join(Badge).filter(UserBadge.user_id == user.user_id, UserBadge.view_count == 0).all()
+    earned_badges = [UserBadgeOut(
+        badge_id=b.badge_id,
+        earned_at=b.earned_at,
+        name=b.badge.name,
+        description=b.badge.description,
+        icon_url=b.badge.icon_url
+    ) for b in badges]
+    return UserBadgesOut(badges=earned_badges)
+
+@router.get("/achievements/all", response_model=AchievementsOut, status_code=status.HTTP_200_OK)
+async def get_all_achievements(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the achievements information in the database.
+
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        user (User, optional): _description_. Defaults to Depends(get_current_user).
+
+    Returns:
+        _type_: _description_
+    """
+    achievements = db.query(Achievement).all()
+    achievement_list = [
+        SingleAchievement(
+            achievement_id=a.id, 
+            name_en=a.name_en, 
+            name_ind=a.name_ind, 
+            description_en=a.description_en, 
+            description_ind=a.description_ind,
+            points=a.points
+        )
+        for a in achievements
+    ]
+    return AchievementsOut(achievements=achievement_list)
+
+@router.get("/achievements", response_model=UserAchievementsOut, status_code=status.HTTP_200_OK)
+async def get_a_user_achievements(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the achievements that a user has unlocked
+
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        user (User, optional): _description_. Defaults to Depends(get_current_user).
+
+    Returns:
+        _type_: _description_
+    """
+    user_achievement = db.query(UserAchievement).join(Achievement).filter(UserAchievement.user_id == user.user_id).all()
+    completed_ach = [SingleUserAchievement(
+        achievement_id = a.achievement_id,
+        name_en = a.achievement.name_en,  
+        name_ind = a.achievement.name_ind, 
+        description_en = a.achievement.description_en, 
+        description_ind = a.achievement.description_ind, 
+        points = a.achievement.points, 
+        completed_at = a.completed_at, 
+        view_count = a.view_count
+    ) for a in user_achievement]
+    for a in user_achievement: 
+        a.view_count += 1
+    db.commit()
+    return UserAchievementsOut(user_achievements=completed_ach)
+
+@router.get("/achievements/notification", response_model=UserAchievementsOut, status_code=status.HTTP_200_OK)
+async def get_not_viewed_badges(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Get all the achievement that a user has not viewed. ONLY used for notification."""
+    ach = db.query(UserAchievement).join(Achievement).filter(UserAchievement.user_id == user.user_id, UserAchievement.view_count == 0).all()
+    earned_ach = [SingleUserAchievement(
+        achievement_id=a.achievement_id, 
+        name_en=a.achievement.name_en, 
+        name_ind=a.achievement.name_ind,
+        description_en=a.achievement.description_en,
+        description_ind=a.achievement.description_ind, 
+        points=a.achievement.points,
+        completed_at=a.completed_at
+
+    ) for a in ach]
+    return UserAchievementsOut(user_achievements=earned_ach)
 
 @router.get("/points", response_model=PointsOut, status_code=status.HTTP_200_OK) 
 async def get_points(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -214,7 +276,7 @@ async def get_questions(quiz_id: str,
 @router.get("/attempts", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut)
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     attempts = db.query(Attempt).options(joinedload(Attempt.quiz)).filter(Attempt.user_id == user.user_id).all()
-    quiz_attempts = {} # ket= quiz_id, value= attempt object
+    quiz_attempts = {} # ket= quiz_id, value= list of attempt object
 
     for attempt in attempts:
         qid = int(attempt.quiz_id)

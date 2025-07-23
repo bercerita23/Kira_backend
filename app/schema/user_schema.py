@@ -15,7 +15,7 @@ class UserListResponse(BaseModel):
 class UserBadgeOut(BaseModel):
     badge_id: str
     earned_at: datetime
-    is_viewed: bool
+    view_count: Optional[int] = None
     name: str
     description: Union[str, None]
     icon_url: Union[str, None]
@@ -80,3 +80,32 @@ class BestAttemptOut(BaseModel):
 
 class BestAttemptsOut(BaseModel):
     attempts: List[BestAttemptOut]
+
+
+###################
+### Achievement ###
+###################
+class SingleAchievement(BaseModel): 
+    achievement_id: str 
+    name_en: str
+    name_ind: str
+    description_en: str
+    description_ind: str
+    points: int
+
+class AchievementsOut(BaseModel): 
+    achievements: List[SingleAchievement]
+
+class SingleUserAchievement(BaseModel): 
+    achievement_id: str 
+    name_en: str
+    name_ind: str
+    description_en: str
+    description_ind: str
+    points: int
+    
+    completed_at: datetime
+    view_count: Optional[int] = None
+
+class UserAchievementsOut(BaseModel): 
+    user_achievements: List[SingleUserAchievement]

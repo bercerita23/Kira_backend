@@ -27,3 +27,4 @@ class User(Base):
     points = relationship("Points", back_populates="user", uselist=False, cascade="all, delete-orphan")
     quizzes = relationship("Quiz", back_populates="creator", cascade="all, delete-orphan")
     attempts = relationship("Attempt", back_populates="user", cascade="all, delete-orphan")
+    achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
