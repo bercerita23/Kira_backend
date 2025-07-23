@@ -5,6 +5,10 @@ from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import func
 
+#############
+### Badge ###
+#############
+
 def check_and_award_badges(user_id: str):
     """
     Background task to check and award badges to a user based on their points.
@@ -46,6 +50,3 @@ def check_and_award_badges(user_id: str):
     finally:
         db.close()
 
-# Future background tasks can be added below
-# def another_background_task(...):
-#     ...
