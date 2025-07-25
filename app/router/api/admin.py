@@ -12,6 +12,91 @@ from app.model.points import Points
 
 router = APIRouter()
 
+@router.get("/student/{username}", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_detail_student_info(
+    username: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    # 1. Fetch user and check school
+    user = db.query(User).filter(
+        User.username == username,
+        User.school_id == admin.school_id,
+        User.is_admin == False
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Student not found in your school")
+
+    # 2. Points
+    points = user.points.points if user.points else 0
+
+    # 3. Streak
+    streak = user.streak.current_streak if user.streak else 0
+
+    # 4. Badges
+    badges = [
+        {
+            "badge_id": b.badge_id,
+            "name": b.badge.name,
+            "earned_at": b.earned_at,
+            "description": b.badge.description,
+            "icon_url": b.badge.icon_url,
+        }
+        for b in user.badges
+    ]
+    badges_earned = len(badges)
+
+    # 5. Quiz Attempts
+    attempts = user.attempts
+    quiz_history = {}
+    for a in attempts:
+        if a.quiz_id not in quiz_history:
+            quiz_history[a.quiz_id] = {
+                "quiz_name": a.quiz.name if a.quiz else "",
+                "attempts": [],
+            }
+        quiz_history[a.quiz_id]["attempts"].append(a)
+
+    quiz_list = []
+    grades = []
+    for quiz_id, data in quiz_history.items():
+        attempts_list = data["attempts"]
+        best_attempt = max(attempts_list, key=lambda x: x.pass_count or 0)
+        total_attempts = len(attempts_list)
+        # Calculate grade as percent correct if possible
+        total_questions = (best_attempt.pass_count or 0) + (best_attempt.fail_count or 0)
+        grade = (best_attempt.pass_count / total_questions * 100) if total_questions else 0
+        grades.append(grade)
+        quiz_list.append({
+            "quiz_name": data["quiz_name"],
+            "date": best_attempt.end_at,
+            "grade": f"{grade:.0f}%",
+            "retakes": total_attempts - 1,
+        })
+
+    avg_quiz_grade = f"{(sum(grades) / len(grades)):.0f}%" if grades else "N/A"
+
+    # 6. Points History (if you have a log, otherwise use quiz completions)
+    points_history = [
+        {
+            "points": a.pass_count,  # or however you award points
+            "date": a.end_at,
+            "description": f"Quiz {a.quiz.name} Completed"
+        }
+        for a in attempts if a.pass_count
+    ]
+
+    # 7. Assemble response
+    return {
+        "total_points": points,
+        "points_history": points_history,
+        "avg_quiz_grade": avg_quiz_grade,
+        "quiz_history": quiz_list,
+        "badges_earned": badges_earned,
+        "badges": badges,
+        "learning_streak": streak,
+    }
+
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_student(student: StudentCreate,
                          db: Session = Depends(get_db),
