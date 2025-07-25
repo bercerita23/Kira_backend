@@ -6,9 +6,9 @@ from app.model.streaks import Streak
 from app.model.attempts import Attempt
 
 
-############
-## streak ##
-############
+##############
+### streak ###
+##############
 
 def update_streak(user_id: str):
     SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
