@@ -241,6 +241,10 @@ async def update_student_info(
         student.notes = student_update.notes
     if student_update.username is not None:
         student.username = student_update.username
+    if student_update.school is not None:
+        student.school = student_update.school
+    if student_update.grade is not None:
+        student.grade = student_update.grade
     db.commit()
     return {"message": "Student information updated successfully"}
 
