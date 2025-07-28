@@ -360,7 +360,7 @@ async def submit_quiz(
     #######################
     background_tasks.add_task(check_achievement_and_award, user.user_id)
     background_tasks.add_task(check_and_award_badges, user.user_id)
-    background_tasks.add_task(update_streak, user.user_id)
+    # background_tasks.add_task(update_streak, user.user_id)
 
     # 5. Prepare response using Pydantic model for serialization
     return {
