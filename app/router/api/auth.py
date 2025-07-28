@@ -275,7 +275,7 @@ async def request_reset_password(request_body: ResetPasswordRequest,
         admin_emails = [r.email for r in res]
         for email in admin_emails: 
             print(email)
-            send_reset_request_to_admin("admin/login", email,
+            send_reset_request_to_admin("login", email,
                                     student.username, student.school_id, student.first_name)
         
 
