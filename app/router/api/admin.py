@@ -98,6 +98,7 @@ async def get_detail_student_info(
     ]
     achs = sorted(achs, key=lambda x: x["completed_at"], reverse=True)
 
+
     # 8. Assemble response
     return {
         "total_points": points,
@@ -107,7 +108,16 @@ async def get_detail_student_info(
         "badges_earned": badges_earned,
         "badges": badges,
         "learning_streak": streak,
-        "achievements": achs
+        "achievements": achs, 
+        "student_info": {
+            "first_name": user.first_name, 
+            "last_name": user.last_name, 
+            "created_at": user.created_at, 
+            "notes": user.notes, 
+            "last_login_time": user.last_login_time, 
+            "deactivated": user.deactivated, 
+            "grade": user.grade
+        }
     }
 
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
