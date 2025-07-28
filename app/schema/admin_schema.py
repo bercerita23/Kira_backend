@@ -14,6 +14,8 @@ class StudentUpdate(BaseModel):
     last_name: Optional[str] = None
     email: Optional[str] = None
     notes: Optional[str] = None
+    school: Optional[str] = None
+    grade: Optional[str] = None
 
 class PasswordResetWithUsername(BaseModel): 
     username: str = None
