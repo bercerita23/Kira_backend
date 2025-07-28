@@ -104,14 +104,60 @@ def check_achievement_and_award(user_id: str):
             # brainstorm: if the quiz id is consecutive thorugh out the attempts, the user is guicci
             # reduce the problem to two weeks: only need 6 consecutive quiz id now 
             # user attemp: 1 2 3   5 6 7 8 9 10     12 13 14
-            pass
+            s = set(t.quiz_id for t in temp)
+            longest = 0
+
+            for n in s:
+                if n - 1 not in s: # find the first num 
+                    length = 1
+
+                    while n + length in s:
+                        length += 1
+                    
+                    longest = max(longest, length)
+            
+            if longest >= 15: # give ACH004
+                new_achievement = UserAchievement(
+                        user_id = user_id,
+                        achievement_id = 'ACH004', 
+                        completed_at = datetime.now(), 
+                        view_count = 0
+                    )
+                points.points += 50
+                db.add(new_achievement)
+                db.commit() 
+                db.refresh(new_achievement)
+
+
 
         ##############
         ### ACH005 ###
         ##############
         # description: Complete all quizzes for 10 weeks in a row (Attempt all 30 quizzes)
         if 'ACH005' not in unlocked_set: 
-            pass
+            s = set(t.quiz_id for t in temp)
+            longest = 0
+
+            for n in s:
+                if n - 1 not in s: # find the first num 
+                    length = 1
+
+                    while n + length in s:
+                        length += 1
+                    
+                    longest = max(longest, length)
+            
+            if longest >= 30: # give ACH005
+                new_achievement = UserAchievement(
+                        user_id = user_id,
+                        achievement_id = 'ACH005', 
+                        completed_at = datetime.now(), 
+                        view_count = 0
+                    )
+                points.points += 50
+                db.add(new_achievement)
+                db.commit() 
+                db.refresh(new_achievement)
 
         ##############
         ### ACH006 ###
