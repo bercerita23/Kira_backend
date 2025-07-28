@@ -11,6 +11,7 @@ class Badge(Base):
     name = Column(String(255), nullable=False)
     bahasa_indonesia_name = Column(String(255), nullable=False)
     description = Column(String(512), nullable=True)
+    bahasa_indonesia_description = Column(String(255), nullable=False)
     icon_url = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     earned_by_points = Column(Boolean, nullable=False)

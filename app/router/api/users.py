@@ -36,9 +36,9 @@ async def get_all_badges(db: Session = Depends(get_db), user: User = Depends(get
             "badge_id": b.badge_id,
             "name": b.name,
             "bahasa_indonesia_name": b.bahasa_indonesia_name,
+            "bahasa_indonesia_description": b.bahasa_indonesia_description,
             "description": b.description,
             "icon_url": b.icon_url,
-            "created_at": b.created_at,
             "earned_by_points": b.earned_by_points,
             "points_required": b.points_required
         }
