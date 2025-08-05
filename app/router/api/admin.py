@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
 from app.schema.admin_schema import *
 from app.router.auth_util import *
+from app.model.topics import Topic 
 from app.model.users import User
 from app.router.dependencies import *
-from typing import List
+from typing import List, Annotated
 from datetime import datetime
 from app.model.points import Points
+import hashlib
+
+import fitz 
 
 router = APIRouter()
 
@@ -341,3 +345,50 @@ async def reactivate_student(
     student.deactivated = False
     db.commit()
     return {"message": "Student reactivated successfully"}
+
+@router.post("/content-upload", response_model=dict, status_code=status.HTTP_200_OK) 
+async def content_upload(
+    file: UploadFile, 
+    week_number: int = Form(...),
+    db: Session = Depends(get_db), 
+    # admin: User = Depends(get_current_admin)
+): 
+    """upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
+
+    Args:
+        file (UploadFile): _description_
+        week_number (int): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+    school_id = "SCH001"
+    # stage 1: compute and compare the hash_value of the file to check if it's duplicate 
+    contents = await file.read() 
+    hashed = hashlib.sha256(contents).hexdigest()
+    # check if the hash value is already in the database
+    hash_values = db.query(Topic.hash_value).filter(Topic.school_id == school_id).all()
+    hash_values_in_db = set(h[0] for h in hash_values)
+    if hashed in hash_values_in_db: 
+        return {"message": "File was already uploaded"}
+
+    # stage 2: upload the file to S3
+
+    # stage 3: insert the new topic entry into the topics table 
+    new_topic = Topic(
+        topic_name = file.filename, 
+        s3_bucket_url = "TODO", 
+        updated_at = datetime.now(), 
+        state = "READY_FOR_GENERATION", 
+        hash_value = hashed, 
+        week_number = week_number, 
+        school_id = school_id
+    )
+    db.add(new_topic)
+    db.commit()
+    db.refresh(new_topic)
+
+    return {
+        "message": f"File {file.filename} has been successfully uploaded."
+    }
