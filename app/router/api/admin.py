@@ -511,7 +511,6 @@ async def content_reupload(
     db.add(new_topic)
     db.commit()
     db.refresh(new_topic)
-    # TODO: need to be change to admin.email
     admin_eamil = admin.email
     send_upload_notification(admin_eamil, file.filename)
 
