@@ -354,7 +354,7 @@ async def reactivate_student(
 @router.get("/contents", response_model=TopicsOut, status_code=status.HTTP_200_OK)
 async def get_all_content(
     db: Session = Depends(get_db), 
-    # admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin)
 ):
    """ return all the topics uploaded from that school
 
@@ -364,7 +364,7 @@ async def get_all_content(
     Returns:
         _type_: _description_
     """
-   school_id = "SCH001"
+   school_id = admin.school_id
    topics = db.query(Topic).filter(Topic.school_id == school_id).all()
    res = [
        TopicOut(
@@ -384,7 +384,7 @@ async def content_upload(
     title: str = Form(...),
     week_number: int = Form(...),
     db: Session = Depends(get_db), 
-    # admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin)
 ): 
     """upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
 
@@ -396,8 +396,7 @@ async def content_upload(
     Returns:
         _type_: _description_
     """
-    # TODO: to remove and chagned to the actual admin.school_id
-    school_id = "SCH001"
+    school_id = admin.school_id
     # stage 1: compute and compare the hash_value of the file to check if it's duplicate 
     contents = await file.read() 
     hashed = hashlib.sha256(contents).hexdigest()
@@ -442,7 +441,7 @@ async def content_upload(
     db.commit()
     db.refresh(new_topic)
     # TODO: need to be change to admin.email
-    admin_eamil = "seankh4444@gmail.com"
+    admin_eamil = admin.email
     send_upload_notification(admin_eamil, file.filename)
 
     return {
@@ -456,7 +455,7 @@ async def content_reupload(
     week_number: int = Form(...),
     topic_id: int = Form(...),
     db: Session = Depends(get_db), 
-    # admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin)
 ): 
     """re-upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
 
@@ -468,8 +467,7 @@ async def content_reupload(
     Returns:
         _type_: _description_
     """
-    # TODO: to remove and chagned to the actual admin.school_id
-    school_id = "SCH001"
+    school_id = admin.school_id
 
     contents = await file.read()
     # stage 1: remove the entry in the DB
@@ -514,7 +512,7 @@ async def content_reupload(
     db.commit()
     db.refresh(new_topic)
     # TODO: need to be change to admin.email
-    admin_eamil = "seankh4444@gmail.com"
+    admin_eamil = admin.email
     send_upload_notification(admin_eamil, file.filename)
 
     return {
