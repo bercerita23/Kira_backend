@@ -39,3 +39,13 @@ class StudentDeactivateRequest(BaseModel):
 
 class StudentReactivateRequest(BaseModel):
     username: str
+
+class TopicOut(BaseModel): 
+    topic_id: int 
+    topic_name: str
+    state: str
+    week_number: int 
+    updated_at: datetime
+
+class TopicsOut(BaseModel): 
+    topics: list[TopicOut]
