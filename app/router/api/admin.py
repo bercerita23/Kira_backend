@@ -1,16 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
 from app.schema.admin_schema import *
 from app.router.auth_util import *
+from app.model.topics import Topic 
 from app.model.users import User
 from app.router.dependencies import *
-from typing import List
+from typing import List, Annotated
 from datetime import datetime
 from app.model.points import Points
+import hashlib
+import boto3
+from typing import Optional
+from botocore.exceptions import ClientError, NoCredentialsError
+from app.router.aws_s3 import *
+from app.router.aws_ses import *
+import fitz 
 
 router = APIRouter()
+s3_service = S3Service()
 
 @router.get("/student/{username}", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_detail_student_info(
@@ -341,3 +350,170 @@ async def reactivate_student(
     student.deactivated = False
     db.commit()
     return {"message": "Student reactivated successfully"}
+
+@router.get("/contents", response_model=TopicsOut, status_code=status.HTTP_200_OK)
+async def get_all_content(
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+):
+   """ return all the topics uploaded from that school
+
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+   school_id = admin.school_id
+   topics = db.query(Topic).filter(Topic.school_id == school_id).all()
+   res = [
+       TopicOut(
+           topic_id=t.topic_id, 
+           topic_name=t.topic_name, 
+           state=t.state, 
+           week_number=t.week_number, 
+           updated_at=t.updated_at
+       )
+   for t in topics ]
+   return TopicsOut(topics=res)
+
+
+@router.post("/content-upload", response_model=dict, status_code=status.HTTP_200_OK) 
+async def content_upload(
+    file: UploadFile, 
+    title: str = Form(...),
+    week_number: int = Form(...),
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+): 
+    """upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
+
+    Args:
+        file (UploadFile): _description_
+        week_number (int): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+    school_id = admin.school_id
+    # stage 1: compute and compare the hash_value of the file to check if it's duplicate 
+    contents = await file.read() 
+    hashed = hashlib.sha256(contents).hexdigest()
+    # check if the hash value is already in the database
+    hash_values = db.query(Topic.hash_value).filter(Topic.school_id == school_id).all()
+    hash_values_in_db = set(h[0] for h in hash_values)
+    if hashed in hash_values_in_db: 
+        return {"message": "File might already been uploaded by other admins"}
+
+    # stage 2: upload the file to S3
+    s3_url = None
+    try:
+        s3_url = s3_service.upload_file_to_s3(
+            file_content=contents,
+            school_id=school_id,
+            filename=file.filename,
+        )
+        
+        if not s3_url:
+            return {
+                "message": "Failed to upload file to S3", 
+                "status": "error"
+            }
+            
+    except Exception as e:
+        return {
+            "message": f"Error during S3 upload: {str(e)}", 
+            "status": "error"
+        }
+
+    # stage 3: insert the new topic entry into the topics table 
+    new_topic = Topic(
+        topic_name = title, 
+        s3_bucket_url = s3_url, 
+        updated_at = datetime.now(), 
+        state = "READY_FOR_GENERATION", 
+        hash_value = hashed, 
+        week_number = week_number, 
+        school_id = school_id
+    )
+    db.add(new_topic)
+    db.commit()
+    db.refresh(new_topic)
+    # TODO: need to be change to admin.email
+    admin_eamil = admin.email
+    send_upload_notification(admin_eamil, file.filename)
+
+    return {
+        "message": f"File {file.filename} has been successfully uploaded."
+    }
+
+@router.post("/content-reupload", response_model=dict, status_code=status.HTTP_200_OK) 
+async def content_reupload(
+    file: UploadFile, 
+    title: str = Form(...),
+    week_number: int = Form(...),
+    topic_id: int = Form(...),
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+): 
+    """re-upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
+
+    Args:
+        file (UploadFile): _description_
+        week_number (int): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+    school_id = admin.school_id
+
+    contents = await file.read()
+    # stage 1: remove the entry in the DB
+    old_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first() 
+    
+    db.delete(old_topic)
+    
+    # stage 2: delete the file on S3
+    s3_service.delete_file_by_url(old_topic.s3_bucket_url)
+    # stage 3: upload the new file on S3
+    s3_url = None
+    try:
+        s3_url = s3_service.upload_file_to_s3(
+            file_content=contents,
+            school_id=school_id,
+            filename=file.filename,
+        )
+        
+        if not s3_url:
+            return {
+                "message": "Failed to upload file to S3", 
+                "status": "error"
+            }
+            
+    except Exception as e:
+        return {
+            "message": f"Error during S3 upload: {str(e)}", 
+            "status": "error"
+        }
+
+    # stage 3: insert the new topic entry into the topics table 
+    new_topic = Topic(
+        topic_name = title, 
+        s3_bucket_url = s3_url, 
+        updated_at = datetime.now(), 
+        state = "READY_FOR_GENERATION", 
+        hash_value = hashlib.sha256(contents).hexdigest(), 
+        week_number = week_number, 
+        school_id = school_id
+    )
+    db.add(new_topic)
+    db.commit()
+    db.refresh(new_topic)
+    admin_eamil = admin.email
+    send_upload_notification(admin_eamil, file.filename)
+
+    return {
+        "message": f"File {file.filename} has been successfully re-uploaded."
+    }
