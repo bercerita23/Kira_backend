@@ -14,6 +14,8 @@ class StudentUpdate(BaseModel):
     last_name: Optional[str] = None
     email: Optional[str] = None
     notes: Optional[str] = None
+    school: Optional[str] = None
+    grade: Optional[str] = None
 
 class PasswordResetWithUsername(BaseModel): 
     username: str = None
@@ -37,3 +39,13 @@ class StudentDeactivateRequest(BaseModel):
 
 class StudentReactivateRequest(BaseModel):
     username: str
+
+class TopicOut(BaseModel): 
+    topic_id: int 
+    topic_name: str
+    state: str
+    week_number: int 
+    updated_at: datetime
+
+class TopicsOut(BaseModel): 
+    topics: list[TopicOut]

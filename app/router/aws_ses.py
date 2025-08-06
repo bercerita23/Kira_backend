@@ -277,3 +277,37 @@ def send_reset_request_to_admin(
         subject="Bercerita KIRA - Student Password Reset",
         body_html=body_html
     )
+
+def send_upload_notification(
+    email: str, 
+    file_name: str
+) -> bool:
+    """
+    Send invitation email to new admin.
+    
+    Args:
+        email: New admin's email address
+        file_name: file_name
+        
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    verification_link = f"{settings.FRONTEND_URL}/login"
+    
+    additional_info = f"""
+    <p>Your file {file_name} was uploaded successfully, we will send you another notification when the quiz is ready.</p>
+    """
+    
+    body_html = _create_email_template(
+        title="Content Uploaded",
+        main_content="Click the button below to login",
+        verification_link=verification_link,
+        button_text="Login",
+        additional_info=additional_info
+    )
+    
+    return _send_email(
+        email=email,
+        subject="Bercerita KIRA - Document Upload Successful",
+        body_html=body_html
+    )

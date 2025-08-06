@@ -77,6 +77,7 @@ class BestAttemptOut(BaseModel):
     attempt_count: int
     quiz_name: str
     duration_in_sec: int
+    completed_at: datetime
 
 class BestAttemptsOut(BaseModel):
     attempts: List[BestAttemptOut]

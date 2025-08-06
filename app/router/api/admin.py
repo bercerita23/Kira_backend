@@ -1,16 +1,133 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
 from app.schema.admin_schema import *
 from app.router.auth_util import *
+from app.model.topics import Topic 
 from app.model.users import User
 from app.router.dependencies import *
-from typing import List
+from typing import List, Annotated
 from datetime import datetime
 from app.model.points import Points
+import hashlib
+import boto3
+from typing import Optional
+from botocore.exceptions import ClientError, NoCredentialsError
+from app.router.aws_s3 import *
+from app.router.aws_ses import *
+import fitz 
 
 router = APIRouter()
+s3_service = S3Service()
+
+@router.get("/student/{username}", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_detail_student_info(
+    username: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    # 1. Fetch user and check school
+    user = db.query(User).filter(
+        User.username == username,
+        User.school_id == admin.school_id,
+        User.is_admin == False
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Student not found in your school")
+
+    # 2. Points
+    points = user.points.points if user.points else 0
+
+    # 3. Streak
+    streak = user.streak.current_streak if user.streak else 0
+
+    # 4. Badges
+    badges = [
+        {
+            "badge_id": b.badge_id,
+            "name": b.badge.name,
+            "earned_at": b.earned_at,
+            "description": b.badge.description,
+            "icon_url": b.badge.icon_url,
+        }
+        for b in user.badges
+    ]
+    badges_earned = len(badges)
+
+    # 5. Quiz Attempts
+    attempts = user.attempts
+    quiz_history = {}
+    for a in attempts:
+        if a.quiz_id not in quiz_history:
+            quiz_history[a.quiz_id] = {
+                "quiz_name": a.quiz.name if a.quiz else "",
+                "attempts": [],
+            }
+        quiz_history[a.quiz_id]["attempts"].append(a)
+
+    quiz_list = []
+    grades = []
+    for quiz_id, data in quiz_history.items():
+        attempts_list = data["attempts"]
+        best_attempt = max(attempts_list, key=lambda x: x.pass_count or 0)
+        total_attempts = len(attempts_list)
+        # Calculate grade as percent correct if possible
+        total_questions = (best_attempt.pass_count or 0) + (best_attempt.fail_count or 0)
+        grade = (best_attempt.pass_count / total_questions * 100) if total_questions else 0
+        grades.append(grade)
+        quiz_list.append({
+            "quiz_name": data["quiz_name"],
+            "date": best_attempt.end_at,
+            "grade": f"{grade:.0f}%",
+            "retakes": total_attempts - 1,
+        })
+
+    avg_quiz_grade = f"{(sum(grades) / len(grades)):.0f}%" if grades else "N/A"
+
+    # 6. Points History (if you have a log, otherwise use quiz completions)
+    points_history = [
+        {
+            "points": a.pass_count,  # or however you award points
+            "date": a.end_at,
+            "description": f"Quiz {a.quiz.name} Completed"
+        }
+        for a in attempts if a.pass_count
+    ]
+
+    # 7. Achievements
+    achievements = user.achievements
+    achs = [
+        {
+            "achievement_id": a.achievement_id, 
+            "name": a.achievement.name_en,
+            "description": a.achievement.description_en,
+            "completed_at": a.completed_at
+        } for a in achievements
+    ]
+    achs = sorted(achs, key=lambda x: x["completed_at"], reverse=True)
+
+
+    # 8. Assemble response
+    return {
+        "total_points": points,
+        "points_history": points_history,
+        "avg_quiz_grade": avg_quiz_grade,
+        "quiz_history": quiz_list,
+        "badges_earned": badges_earned,
+        "badges": badges,
+        "learning_streak": streak,
+        "achievements": achs, 
+        "student_info": {
+            "first_name": user.first_name, 
+            "last_name": user.last_name, 
+            "created_at": user.created_at, 
+            "notes": user.notes, 
+            "last_login_time": user.last_login_time, 
+            "deactivated": user.deactivated, 
+            "grade": user.grade
+        }
+    }
 
 @router.post("/student", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_student(student: StudentCreate,
@@ -20,8 +137,7 @@ async def create_student(student: StudentCreate,
     1. username
     2. a password
     3. first name 
-    4. last ame 
-    5. and a username
+    4. last name
 
     Args:
         student (StudentCreate): _description_
@@ -43,8 +159,7 @@ async def create_student(student: StudentCreate,
     # Create Points record for the new student
     new_points = Points(
         user_id=new_student.user_id,
-        regular_points=0,
-        premium_points=0
+        points=0,
     )
     
     # Add both records and commit once
@@ -145,6 +260,10 @@ async def update_student_info(
         student.notes = student_update.notes
     if student_update.username is not None:
         student.username = student_update.username
+    if student_update.school is not None:
+        student.school = student_update.school
+    if student_update.grade is not None:
+        student.grade = student_update.grade
     db.commit()
     return {"message": "Student information updated successfully"}
 
@@ -231,3 +350,170 @@ async def reactivate_student(
     student.deactivated = False
     db.commit()
     return {"message": "Student reactivated successfully"}
+
+@router.get("/contents", response_model=TopicsOut, status_code=status.HTTP_200_OK)
+async def get_all_content(
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+):
+   """ return all the topics uploaded from that school
+
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+   school_id = admin.school_id
+   topics = db.query(Topic).filter(Topic.school_id == school_id).all()
+   res = [
+       TopicOut(
+           topic_id=t.topic_id, 
+           topic_name=t.topic_name, 
+           state=t.state, 
+           week_number=t.week_number, 
+           updated_at=t.updated_at
+       )
+   for t in topics ]
+   return TopicsOut(topics=res)
+
+
+@router.post("/content-upload", response_model=dict, status_code=status.HTTP_200_OK) 
+async def content_upload(
+    file: UploadFile, 
+    title: str = Form(...),
+    week_number: int = Form(...),
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+): 
+    """upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
+
+    Args:
+        file (UploadFile): _description_
+        week_number (int): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+    school_id = admin.school_id
+    # stage 1: compute and compare the hash_value of the file to check if it's duplicate 
+    contents = await file.read() 
+    hashed = hashlib.sha256(contents).hexdigest()
+    # check if the hash value is already in the database
+    hash_values = db.query(Topic.hash_value).filter(Topic.school_id == school_id).all()
+    hash_values_in_db = set(h[0] for h in hash_values)
+    if hashed in hash_values_in_db: 
+        return {"message": "File might already been uploaded by other admins"}
+
+    # stage 2: upload the file to S3
+    s3_url = None
+    try:
+        s3_url = s3_service.upload_file_to_s3(
+            file_content=contents,
+            school_id=school_id,
+            filename=file.filename,
+        )
+        
+        if not s3_url:
+            return {
+                "message": "Failed to upload file to S3", 
+                "status": "error"
+            }
+            
+    except Exception as e:
+        return {
+            "message": f"Error during S3 upload: {str(e)}", 
+            "status": "error"
+        }
+
+    # stage 3: insert the new topic entry into the topics table 
+    new_topic = Topic(
+        topic_name = title, 
+        s3_bucket_url = s3_url, 
+        updated_at = datetime.now(), 
+        state = "READY_FOR_GENERATION", 
+        hash_value = hashed, 
+        week_number = week_number, 
+        school_id = school_id
+    )
+    db.add(new_topic)
+    db.commit()
+    db.refresh(new_topic)
+    # TODO: need to be change to admin.email
+    admin_eamil = admin.email
+    send_upload_notification(admin_eamil, file.filename)
+
+    return {
+        "message": f"File {file.filename} has been successfully uploaded."
+    }
+
+@router.post("/content-reupload", response_model=dict, status_code=status.HTTP_200_OK) 
+async def content_reupload(
+    file: UploadFile, 
+    title: str = Form(...),
+    week_number: int = Form(...),
+    topic_id: int = Form(...),
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+): 
+    """re-upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
+
+    Args:
+        file (UploadFile): _description_
+        week_number (int): _description_
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+
+    Returns:
+        _type_: _description_
+    """
+    school_id = admin.school_id
+
+    contents = await file.read()
+    # stage 1: remove the entry in the DB
+    old_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first() 
+    
+    db.delete(old_topic)
+    
+    # stage 2: delete the file on S3
+    s3_service.delete_file_by_url(old_topic.s3_bucket_url)
+    # stage 3: upload the new file on S3
+    s3_url = None
+    try:
+        s3_url = s3_service.upload_file_to_s3(
+            file_content=contents,
+            school_id=school_id,
+            filename=file.filename,
+        )
+        
+        if not s3_url:
+            return {
+                "message": "Failed to upload file to S3", 
+                "status": "error"
+            }
+            
+    except Exception as e:
+        return {
+            "message": f"Error during S3 upload: {str(e)}", 
+            "status": "error"
+        }
+
+    # stage 3: insert the new topic entry into the topics table 
+    new_topic = Topic(
+        topic_name = title, 
+        s3_bucket_url = s3_url, 
+        updated_at = datetime.now(), 
+        state = "READY_FOR_GENERATION", 
+        hash_value = hashlib.sha256(contents).hexdigest(), 
+        week_number = week_number, 
+        school_id = school_id
+    )
+    db.add(new_topic)
+    db.commit()
+    db.refresh(new_topic)
+    admin_eamil = admin.email
+    send_upload_notification(admin_eamil, file.filename)
+
+    return {
+        "message": f"File {file.filename} has been successfully re-uploaded."
+    }

@@ -1,9 +1,14 @@
 from app.model.points import Points
 from app.model.user_badges import UserBadge
 from app.model.badges import Badge
+from app.model.achievements import *
+from app.model.user_achievements import *
+from app.model.attempts import *
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
+from datetime import datetime
 
 #############
 ### Badge ###
@@ -50,9 +55,3 @@ def check_and_award_badges(user_id: str):
     finally:
         db.close()
 
-###################
-### Achievement ###
-###################
-
-def check_achievement_and_award(): 
-    pass

@@ -16,3 +16,5 @@ class School(Base):
     users = relationship("User", back_populates="school")
     quizzes = relationship("Quiz", back_populates="school") 
     questions = relationship("Question", back_populates="school")
+    
+    topics = relationship("Topic", back_populates="school")
