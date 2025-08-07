@@ -1,7 +1,11 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from app.model import users, schools, streaks, badges, user_badges, points, quizzes, questions, attempts, temp_admins, verification_codes, topics
-from typing import Union
+from fastapi_utils.tasks import repeat_every
+from app.repeated_tasks import *
+import asyncio
+
 
 from app.router import (
     auth_router, 
@@ -11,8 +15,46 @@ from app.router import (
 )
 from app.config import settings
 
+background_tasks = set()
 
-app = FastAPI(title=settings.PROJECT_NAME, version=settings.API_VERSION) 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    print("Starting up application...")
+    
+
+    # Start the background task
+    # hello_world_task = asyncio.create_task(hello_world())
+    # hello_sky_task = asyncio.create_task(hello_sky())
+    prompt_task = asyncio.create_task(prompt_generation())
+
+    # Add tasks to the set for tracking
+    # background_tasks.add(hello_world_task)
+    # background_tasks.add(hello_sky_task)
+    background_tasks.add(prompt_task)
+
+    # auto cleanup for taskss
+    # hello_world_task.add_done_callback(background_tasks.discard)
+    # hello_sky_task.add_done_callback(background_tasks.discard) 
+    prompt_task.add_done_callback(background_tasks.discard) 
+
+    yield
+    
+    # Shutdown logic
+    print("Shutting down application...")
+    
+    # Cancel all background tasks
+    for task in background_tasks:
+        task.cancel()
+    
+    # Wait for all tasks to complete cancellation
+    if background_tasks:
+        await asyncio.gather(*background_tasks, return_exceptions=True)
+
+
+app = FastAPI(lifespan=lifespan, 
+              title=settings.PROJECT_NAME, 
+              version=settings.API_VERSION) 
 
 # Add CORS middleware
 app.add_middleware(

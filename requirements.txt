@@ -1,3 +1,4 @@
+aiosqlite==0.21.0
 annotated-types==0.7.0
 anyio==4.9.0
 APScheduler==3.11.0
@@ -29,6 +30,7 @@ jwt==1.4.0
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdurl==0.1.2
+mypy_extensions==1.1.0
 packaging==25.0
 passlib==1.7.4
 pluggy==1.6.0
@@ -61,6 +63,7 @@ soupsieve==2.7
 SQLAlchemy==2.0.40
 starlette==0.46.2
 typer==0.15.3
+typing-inspect==0.9.0
 typing-inspection==0.4.0
 typing_extensions==4.13.2
 tzlocal==5.3.1
