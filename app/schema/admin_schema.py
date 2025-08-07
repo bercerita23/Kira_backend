@@ -46,6 +46,7 @@ class TopicOut(BaseModel):
     state: str
     week_number: int 
     updated_at: datetime
+    file_name: str
 
 class TopicsOut(BaseModel): 
     topics: list[TopicOut]
