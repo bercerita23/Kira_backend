@@ -364,6 +364,8 @@ async def get_all_content(
     Returns:
         _type_: _description_
     """
+   import os
+   from urllib.parse import urlparse
    school_id = admin.school_id
    topics = db.query(Topic).filter(Topic.school_id == school_id).all()
    res = [
@@ -372,7 +374,8 @@ async def get_all_content(
            topic_name=t.topic_name, 
            state=t.state, 
            week_number=t.week_number, 
-           updated_at=t.updated_at
+           updated_at=t.updated_at,
+           file_name=os.path.basename(urlparse(t.s3_bucket_url).path) if t.s3_bucket_url else ""
        )
    for t in topics ]
    return TopicsOut(topics=res)
