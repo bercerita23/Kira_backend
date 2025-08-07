@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_DEFAULT_REGION: str
     AWS_S3_BUCKET_NAME: str
+
+    GEMINI_API_KEY: str
+    OPENAI_API_KEY: str
+    
     FRONTEND_URL: str
 
 # class ContainerDevSettings(Settings):
