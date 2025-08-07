@@ -23,6 +23,7 @@ class S3Service:
         file_content: bytes, 
         school_id: str, 
         filename: str,
+        week_number: int
     ) -> Optional[str]:
         """
         Upload file to S3 with organized folder structure
@@ -39,7 +40,7 @@ class S3Service:
         try:
             # Create the S3 key (path) with folder structure
             # Format: content/{school_id}/week_{week_number}/{filename}
-            s3_key = f"{school_id}/{filename}"
+            s3_key = f"{school_id}/{week_number}/{filename}"
             
             # Upload the file
             self.s3_client.put_object(
@@ -149,3 +150,46 @@ class S3Service:
         except Exception as e:
             logger.error(f"Unexpected error deleting from S3: {e}")
             return False
+    
+    def get_file_content_by_url(self, s3_url: str) -> Optional[bytes]:
+        """
+        Get file content from S3 into memory using the full S3 URL (no local file created)
+        
+        Args:
+            s3_url: Full S3 URL from database
+            
+        Returns:
+            File content as bytes if successful, None if failed
+        """
+        try:
+            s3_key = self._extract_key_from_url(s3_url)
+            if not s3_key:
+                logger.error(f"Invalid S3 URL format: {s3_url}")
+                return None
+            
+            # Get the object from S3
+            response = self.s3_client.get_object(
+                Bucket=self.bucket_name,
+                Key=s3_key
+            )
+            
+            # Read the file content
+            file_content = response['Body'].read()
+            logger.info(f"Successfully retrieved file content from S3: {s3_url}")
+            
+            return file_content
+            
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'NoSuchBucket':
+                logger.error(f"Bucket {self.bucket_name} does not exist")
+            elif error_code == 'NoSuchKey':
+                logger.error(f"File not found in S3: {s3_url}")
+            elif error_code == 'AccessDenied':
+                logger.error("Access denied for S3 access")
+            else:
+                logger.error(f"AWS ClientError getting from S3: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error getting file content from S3: {e}")
+            return None

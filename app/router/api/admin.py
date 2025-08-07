@@ -413,6 +413,7 @@ async def content_upload(
             file_content=contents,
             school_id=school_id,
             filename=file.filename,
+            week_number=week_number
         )
         
         if not s3_url:
@@ -477,6 +478,7 @@ async def content_reupload(
     
     # stage 2: delete the file on S3
     s3_service.delete_file_by_url(old_topic.s3_bucket_url)
+    
     # stage 3: upload the new file on S3
     s3_url = None
     try:
@@ -484,6 +486,7 @@ async def content_reupload(
             file_content=contents,
             school_id=school_id,
             filename=file.filename,
+            week_number=week_number
         )
         
         if not s3_url:
