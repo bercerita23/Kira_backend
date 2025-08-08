@@ -27,16 +27,20 @@ async def lifespan(app: FastAPI):
     # hello_sky_task = asyncio.create_task(hello_sky())
     prompt_task = asyncio.create_task(prompt_generation())
 
+
+    ready_task = asyncio.create_task(ready_for_review())
+
     # Add tasks to the set for tracking
     # background_tasks.add(hello_world_task)
     # background_tasks.add(hello_sky_task)
     background_tasks.add(prompt_task)
+    background_tasks.add(ready_task)
 
     # auto cleanup for taskss
     # hello_world_task.add_done_callback(background_tasks.discard)
     # hello_sky_task.add_done_callback(background_tasks.discard) 
     prompt_task.add_done_callback(background_tasks.discard) 
-
+    prompt_task.add_done_callback(background_tasks.discard)
     yield
     
     # Shutdown logic

@@ -283,10 +283,10 @@ def send_upload_notification(
     file_name: str
 ) -> bool:
     """
-    Send invitation email to new admin.
+    Send notification email to new admin.
     
     Args:
-        email: New admin's email address
+        email: 
         file_name: file_name
         
     Returns:
@@ -309,5 +309,34 @@ def send_upload_notification(
     return _send_email(
         email=email,
         subject="Bercerita KIRA - Document Upload Successful",
+        body_html=body_html
+    )
+
+def send_ready_notification(email: str): 
+    """
+    Send ready notification email to new admin.
+    
+    Args:
+        email: 
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    verification_link = f"{settings.FRONTEND_URL}/login"
+    
+    additional_info = f"""
+    <p>Kira has the quiz generated, please login to review the quiz.</p>
+    """
+    
+    body_html = _create_email_template(
+        title="Your Quiz is Ready",
+        main_content="Click the button below to login",
+        verification_link=verification_link,
+        button_text="Login",
+        additional_info=additional_info
+    )
+    
+    return _send_email(
+        email=email,
+        subject="Bercerita KIRA - Quiz Ready",
         body_html=body_html
     )
