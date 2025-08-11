@@ -139,11 +139,12 @@ def _create_email_template(
     <div class="container">
       <h1>{title}</h1>
       <p>{main_content}</p>
+      
+      {code_section}
+      {additional_info}
       <a href="{verification_link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#2a7ae2;color:#fff;border-radius:6px;text-decoration:none;">{button_text}</a>
       <p>If the link does not work, you can copy and paste the following URL into your browser:</p>
       <p><a href="{verification_link}">{verification_link}</a></p>
-      {code_section}
-      {additional_info}
       <div class="footer">
         <p>Learn more about us at <a href="https://www.bercerita.org/" target="_blank">bercerita.org</a>.</p>
         <p>&copy; {current_year} Bercerita KIRA. All rights reserved.</p>

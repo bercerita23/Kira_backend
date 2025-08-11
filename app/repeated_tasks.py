@@ -17,7 +17,7 @@ async def prompt_generation():
                 # get the pdf from S3 
 
                 # quiz and prompt generation 
-                # this question is multipl-c and it's about what kind of animals does it translates to, and 4 options are lion, ele, grif, cat
+                
                 # change the state to PROMPTS_GENERATED
              
         except Exception as e: 
