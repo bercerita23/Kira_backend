@@ -6,6 +6,7 @@ from app.schema.admin_schema import *
 from app.router.auth_util import *
 from app.model.topics import Topic 
 from app.model.users import User
+from app.model.reference_counts import *
 from app.router.dependencies import *
 from typing import List, Annotated
 from datetime import datetime
@@ -17,6 +18,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
+
 
 router = APIRouter()
 s3_service = S3Service()
@@ -380,35 +382,91 @@ async def get_all_content(
    for t in topics ]
    return TopicsOut(topics=res)
 
+@router.get("/hash-values", response_model=List, status_code=status.HTTP_200_OK)
+async def get_all_hash(
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin)
+): 
+    """return a list of file hash, can be empty
 
+    Args:
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+
+    Returns:
+        _type_: _description_
+    """
+    temp = db.query(ReferenceCount).all()
+    res = [t.hash_value for t in temp]
+
+    return res
+
+@router.post("/increase-ref-count", response_model=dict, status_code=status.HTTP_200_OK)
+async def increase_count(
+    title: str = Form(...),
+    week_number: int = Form(...),
+    hash_value: str = Form(...),
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin), 
+): 
+    """_summary_
+
+    Args:
+        title (str, optional): _description_. Defaults to Form(...).
+        week_number (int, optional): _description_. Defaults to Form(...).
+        hash_value (str, optional): The hash value of the file. Defaults to Form(...).
+        db (Session, optional): _description_. Defaults to Depends(get_db).
+        admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+
+    Returns:
+        _type_: _description_
+    """
+    entity = db.query(ReferenceCount).filter(ReferenceCount.hash_value == hash_value).first()
+    entity.count += 1 
+
+    new_topic = Topic(
+        topic_name = title, 
+        s3_bucket_url = entity.referred_s3_url, 
+        updated_at = datetime.now(), 
+        state = "READY_FOR_GENERATION", 
+        hash_value = hash_value, 
+        week_number = week_number, 
+        school_id = admin.school_id
+    )
+
+    db.add(new_topic)
+    db.commit()
+    db.refresh(new_topic)
+    send_upload_notification(admin.email, "")
+    return {
+        "message": f"File has been successfully uploaded."
+    }
+
+    
 @router.post("/content-upload", response_model=dict, status_code=status.HTTP_200_OK) 
 async def content_upload(
     file: UploadFile, 
     title: str = Form(...),
     week_number: int = Form(...),
+    hash_value: str = Form(...),
     db: Session = Depends(get_db), 
-    admin: User = Depends(get_current_admin)
+    admin: User = Depends(get_current_admin), 
 ): 
-    """upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
+    """upload a new file that doesn't exist
 
     Args:
         file (UploadFile): _description_
-        week_number (int): _description_
+        title (str, optional): _description_. Defaults to Form(...).
+        week_number (int, optional): _description_. Defaults to Form(...).
+        hash_value (str, optional): the hash value of the file from the frontend. Defaults to Form(...).
         db (Session, optional): _description_. Defaults to Depends(get_db).
+        admin (User, optional): _description_. Defaults to Depends(get_current_admin).
 
     Returns:
         _type_: _description_
     """
     school_id = admin.school_id
-    # stage 1: compute and compare the hash_value of the file to check if it's duplicate 
     contents = await file.read() 
-    hashed = hashlib.sha256(contents).hexdigest()
-    # check if the hash value is already in the database
-    hash_values = db.query(Topic.hash_value).filter(Topic.school_id == school_id).all()
-    hash_values_in_db = set(h[0] for h in hash_values)
-    if hashed in hash_values_in_db: 
-        return {"message": "File might already been uploaded by other admins"}
-
     # stage 2: upload the file to S3
     s3_url = None
     try:
@@ -437,14 +495,21 @@ async def content_upload(
         s3_bucket_url = s3_url, 
         updated_at = datetime.now(), 
         state = "READY_FOR_GENERATION", 
-        hash_value = hashed, 
+        hash_value = hash_value, 
         week_number = week_number, 
         school_id = school_id
     )
+    new_reference_count = ReferenceCount(
+        hash_value = hash_value,
+        count = 1, 
+        referred_s3_url = s3_url
+    )
+    db.add(new_reference_count)
     db.add(new_topic)
     db.commit()
     db.refresh(new_topic)
-    # TODO: need to be change to admin.email
+    db.refresh(new_reference_count)
+
     admin_eamil = admin.email
     send_upload_notification(admin_eamil, file.filename)
 
@@ -452,74 +517,3 @@ async def content_upload(
         "message": f"File {file.filename} has been successfully uploaded."
     }
 
-@router.post("/content-reupload", response_model=dict, status_code=status.HTTP_200_OK) 
-async def content_reupload(
-    file: UploadFile, 
-    title: str = Form(...),
-    week_number: int = Form(...),
-    topic_id: int = Form(...),
-    db: Session = Depends(get_db), 
-    admin: User = Depends(get_current_admin)
-): 
-    """re-upload the pdf file to the s3 bucket and insert the a new topic entry with initial state READY_FOR_GENERATION
-
-    Args:
-        file (UploadFile): _description_
-        week_number (int): _description_
-        db (Session, optional): _description_. Defaults to Depends(get_db).
-
-    Returns:
-        _type_: _description_
-    """
-    school_id = admin.school_id
-
-    contents = await file.read()
-    # stage 1: remove the entry in the DB
-    old_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first() 
-    
-    db.delete(old_topic)
-    
-    # stage 2: delete the file on S3
-    s3_service.delete_file_by_url(old_topic.s3_bucket_url)
-    
-    # stage 3: upload the new file on S3
-    s3_url = None
-    try:
-        s3_url = s3_service.upload_file_to_s3(
-            file_content=contents,
-            school_id=school_id,
-            filename=file.filename,
-            week_number=week_number
-        )
-        
-        if not s3_url:
-            return {
-                "message": "Failed to upload file to S3", 
-                "status": "error"
-            }
-            
-    except Exception as e:
-        return {
-            "message": f"Error during S3 upload: {str(e)}", 
-            "status": "error"
-        }
-
-    # stage 3: insert the new topic entry into the topics table 
-    new_topic = Topic(
-        topic_name = title, 
-        s3_bucket_url = s3_url, 
-        updated_at = datetime.now(), 
-        state = "READY_FOR_GENERATION", 
-        hash_value = hashlib.sha256(contents).hexdigest(), 
-        week_number = week_number, 
-        school_id = school_id
-    )
-    db.add(new_topic)
-    db.commit()
-    db.refresh(new_topic)
-    admin_eamil = admin.email
-    send_upload_notification(admin_eamil, file.filename)
-
-    return {
-        "message": f"File {file.filename} has been successfully re-uploaded."
-    }
