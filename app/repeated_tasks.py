@@ -1,24 +1,18 @@
 import asyncio
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
-from app.model.topics import *
 from app.router.aws_ses import *
-from app.model.users import *
 #---img generation---
 import os
 import io
-import asyncio
 import base64
 from PIL import Image
 from google import genai
 from google.genai import types
-from app.database.db import get_local_session
-from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.model.topics import Topic
 from app.model.questions import Question
 from app.model.users import User
 from app.router.aws_s3 import S3Service
-from PIL import Image
 #---n---
 async def prompt_generation(): 
     SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
