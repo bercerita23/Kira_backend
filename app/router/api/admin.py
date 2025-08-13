@@ -18,7 +18,6 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
-from app.router.aws_s3 import *
 
 
 router = APIRouter()
@@ -447,7 +446,7 @@ async def increase_count(
 async def decrease_count(
     topic_id: int = Form(...), 
     db: Session = Depends(get_db), 
-    # admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_current_admin),
 ):
     """Decrease reference count for a topic and optionally delete S3 file if no longer referenced
 
