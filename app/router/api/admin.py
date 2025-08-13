@@ -402,7 +402,7 @@ async def get_all_hash(
 
     return res
 
-@router.post("/increase-ref-count", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/upload-content-lite", response_model=dict, status_code=status.HTTP_200_OK)
 async def increase_count(
     title: str = Form(...),
     week_number: int = Form(...),
@@ -443,11 +443,11 @@ async def increase_count(
         "message": f"File has been successfully uploaded."
     }
 
-@router.post("/decrease-ref-count", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/remove-content", response_model=dict, status_code=status.HTTP_200_OK)
 async def decrease_count(
     topic_id: int = Form(...), 
     db: Session = Depends(get_db), 
-    # admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_current_admin)
 ):
     """Decrease reference count for a topic and optionally delete S3 file if no longer referenced
 

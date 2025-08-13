@@ -341,19 +341,19 @@ def send_upload_notification(
     verification_link = f"{settings.FRONTEND_URL}/login"
     
     additional_info = f"""
-    <p>Your file {file_name} was uploaded successfully, we will send you another notification when the quiz is ready.</p>
+    <p></p>
     """
     
     body_html = _create_email_template_without_button(
         title="Status Update",
-        main_content="Content Uploaded",
+        main_content="Your file {file_name} was uploaded successfully, we will notify you when your quiz is ready to review.",
         verification_link=verification_link,
         additional_info=additional_info
     )
     
     return _send_email(
         email=email,
-        subject="Bercerita KIRA - Document Upload Successful",
+        subject="Bercerita KIRA - Content Uploaded",
         body_html=body_html
     )
 
@@ -372,7 +372,7 @@ def send_ready_notification(email: str):
     
     body_html = _create_email_template_without_button(
         title="Status Update",
-        main_content="Your quiz is ready for review, please login to review the quiz.",
+        main_content="Your quiz is ready for review, please login and review the quiz.",
         verification_link=verification_link,
         additional_info=additional_info
     )
