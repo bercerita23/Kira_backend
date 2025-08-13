@@ -401,7 +401,7 @@ async def get_all_hash(
 
     return res
 
-@router.post("/increase-ref-count", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/upload-content-lite", response_model=dict, status_code=status.HTTP_200_OK)
 async def increase_count(
     title: str = Form(...),
     week_number: int = Form(...),
@@ -442,6 +442,40 @@ async def increase_count(
         "message": f"File has been successfully uploaded."
     }
 
+@router.post("/remove-content", response_model=dict, status_code=status.HTTP_200_OK)
+async def decrease_count(
+    topic_id: int = Form(...), 
+    db: Session = Depends(get_db), 
+    admin: User = Depends(get_current_admin),
+):
+    """Decrease reference count for a topic and optionally delete S3 file if no longer referenced
+
+    Args:
+        topic_id (int): The ID of the topic to delete
+        db (Session): Database session
+        admin (User): Current authenticated admin user
+
+    Returns:
+        dict: Success/error message
+
+    Raises:
+        HTTPException: If topic not found or deletion fails
+    """
+    selected_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
+    s3_url = selected_topic.s3_bucket_url
+    referred_entry = db.query(ReferenceCount).filter(ReferenceCount.referred_s3_url == s3_url).first()
+    referred_entry.count -= 1
+
+    if referred_entry.count == 0: # delete the entry and delete it in S3
+        s3_service = S3Service()
+        s3_service.delete_file_by_url(referred_entry.referred_s3_url)
+        # delete file on S3 
+        db.delete(referred_entry)
+    # delete the topic 
+    db.delete(selected_topic)
+    db.commit()
+    return {"message": "The content has been deleted."}
+    
     
 @router.post("/content-upload", response_model=dict, status_code=status.HTTP_200_OK) 
 async def content_upload(
