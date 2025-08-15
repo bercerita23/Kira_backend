@@ -29,6 +29,14 @@ async def visual_generation():
 
     client = genai.Client()
     model_name = "gemini-2.0-flash-preview-image-generation"
+    
+    # Load Gemini role prompt
+    try:
+        with open("app/gen_ai_prompts/gemini_role_prompt.txt", encoding="utf-8") as f:
+            gemini_role_prompt = f.read()
+    except FileNotFoundError:
+        gemini_role_prompt = "Create an educational image based on the following prompt:"
+        print("[visual_generation] Warning: gemini_role_prompt.txt not found, using default prompt")
 
     while True:
         try:
@@ -68,27 +76,24 @@ async def visual_generation():
                             if not prompt_text:
                                 continue
 
-                            # 1) Generate image via Gemini
+                            # Combine role prompt with image prompt
+                            full_prompt = f"{gemini_role_prompt}\n\n{prompt_text}"
+
+                            # 1) Generate image via Gemini using enhanced prompt
                             response = client.models.generate_content(
                                 model=model_name,
-                                contents=prompt_text,
+                                contents=full_prompt,
                                 config=types.GenerateContentConfig(
                                     response_modalities=["TEXT", "IMAGE"]
                                 ),
                             )
 
-                            # 2) Extract image bytes → PIL
+                            # 2) Extract image using same method as my_gemini.py
                             image_obj = None
                             for part in response.candidates[0].content.parts:
-                                if getattr(part, "inline_data", None) is not None:
-                                    raw = part.inline_data.data
-                                    try:
-                                        image_obj = Image.open(io.BytesIO(raw))
-                                    except Exception:
-                                        if isinstance(raw, str):
-                                            raw = raw.encode("utf-8")
-                                        decoded = base64.b64decode(raw)
-                                        image_obj = Image.open(io.BytesIO(decoded))
+                                if part.inline_data is not None:
+                                    # Use BytesIO directly like my_gemini.py
+                                    image_obj = Image.open(io.BytesIO(part.inline_data.data))
                                     break
 
                             if image_obj is None:
@@ -103,12 +108,14 @@ async def visual_generation():
 
                             # 4) Upload to S3 the SAME way as /content-upload
                             #    key becomes: {school_id}/{week_number}/visuals/t{topic}/q{q}.png
-                            filename = f"visuals/t{topic.topic_id}/q{q.question_id}.png"
+                            filename = f"t{topic.topic_id}/q{q.question_id}.png"
                             s3_url = s3_service.upload_file_to_s3(
                                 file_content=png_bytes,
                                 school_id=school_id,
                                 filename=filename,
-                                week_number=week_number
+                                week_number=week_number,
+                                content_type='image/png',
+                                folder_prefix='visuals'
                             )
 
                             if not s3_url:

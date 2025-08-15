@@ -23,7 +23,9 @@ class S3Service:
         file_content: bytes, 
         school_id: str, 
         filename: str,
-        week_number: int
+        week_number: int,
+        content_type: str = 'application/pdf',
+        folder_prefix: str = 'content'
     ) -> Optional[str]:
         """
         Upload file to S3 with organized folder structure
@@ -40,14 +42,14 @@ class S3Service:
         try:
             # Create the S3 key (path) with folder structure
             # Format: content/{school_id}/week_{week_number}/{filename}
-            s3_key = f"{school_id}/{week_number}/{filename}"
+            s3_key = f"{folder_prefix}/{school_id}/{week_number}/{filename}"
             
             # Upload the file
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
                 Key=s3_key,
                 Body=file_content,
-                ContentType='application/pdf'  # Adjust based on your file types
+                ContentType=content_type  # Use the parameter instead of hardcoded
             )
             
             # Return the S3 URL

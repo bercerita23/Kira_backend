@@ -508,7 +508,8 @@ async def content_upload(
             file_content=contents,
             school_id=school_id,
             filename=file.filename,
-            week_number=week_number
+            week_number=week_number,
+            folder_prefix='content'
         )
         
         if not s3_url:

@@ -29,13 +29,17 @@ async def lifespan(app: FastAPI):
 
     ready_task = asyncio.create_task(ready_for_review())
 
+    visual_task = asyncio.create_task(visual_generation())
     # Add tasks to the set for tracking
     background_tasks.add(prompt_task)
     background_tasks.add(ready_task)
+    background_tasks.add(visual_task)
 
-    # auto cleanup for taskss
-    prompt_task.add_done_callback(background_tasks.discard) 
+    # auto cleanup for tasks
     prompt_task.add_done_callback(background_tasks.discard)
+    ready_task.add_done_callback(background_tasks.discard)
+    visual_task.add_done_callback(background_tasks.discard)
+
     yield
     
     # Shutdown logic
