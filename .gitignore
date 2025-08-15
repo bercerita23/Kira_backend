@@ -13,4 +13,4 @@ __pycache__/
 .vscode/
 .env.prod
 .env.local
-.pytest_cache/
+.pytest_cache/git pusll

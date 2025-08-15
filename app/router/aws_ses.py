@@ -346,7 +346,7 @@ def send_upload_notification(
     
     body_html = _create_email_template_without_button(
         title="Status Update",
-        main_content="Your file {file_name} was uploaded successfully, we will notify you when your quiz is ready to review.",
+        main_content=f"Your file {file_name} was uploaded successfully, we will notify you when your quiz is ready to review.",
         verification_link=verification_link,
         additional_info=additional_info
     )

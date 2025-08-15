@@ -61,9 +61,6 @@ async def visual_generation():
 
                     if not q_need:
                         # Nothing to do for this topic; mark as done
-                        topic.state = "VISUALS_GENERATED"
-                        db.add(topic)
-                        db.commit()
                         continue
 
                     made_any = False
