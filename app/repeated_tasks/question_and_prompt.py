@@ -4,9 +4,10 @@ from openai import OpenAI
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.model.topics import Topic
+from app.model.questions import *
 from app.router.aws_s3 import S3Service
 from app.config import settings
-import re
+import re, json
 
 OPENAI_MODEL = "gpt-4o-mini"
 NUM_OF_QUESTION = 5
@@ -31,7 +32,7 @@ async def prompt_generation():
 
                 # if no entry at the state, return the control back to the loop after 20 secs
                 if not rn:
-                    await asyncio.sleep(20)
+                    await asyncio.sleep(10)
                     continue
                 
                 # else get the pdf from S3 as bytes
@@ -72,30 +73,42 @@ async def prompt_generation():
                 # cleanup the uploaded file
                 client.files.delete(uploaded_file.id)
 
-                # extract the model's output
-                # TODO: comment out this line
+                # extract the model's outputs
                 response = completion.choices[0].message.content
-                print(response)
 
                 #####################################################
                 ### step 3: extract information from the response ###
                 #####################################################
-                # TODO: use regular expression
-                pattern = "```json"
-                found = re.search(pattern, response)
-                print(found.start())
+                json_match = re.search(r"```json(.*?)```", response, re.DOTALL)
+                if not json_match: 
+                    raise Exception("No json found in the response")
+                json_str = json_match.group(1).strip()
+                data = json.loads(json_str)
+                print(data)
 
                 #################################################
                 ### step 4: update question entries in the DB ###
                 #################################################
-
-                # TODO: update entries in the db
+                for category, questions in data.items():
+                    for q in questions:
+                        new_question = Question(
+                            school_id=rn.school_id,
+                            topic_id=rn.topic_id,
+                            content=q["question"],
+                            options=q.get("options", []),
+                            question_type=q["type"],
+                            points=1,
+                            answer=q["correct_answer"],
+                            image_prompt=q['visual_prompt'],
+                            image_url=None 
+                        )
+                        db.add(new_question) 
                 
                 # change to next state
                 rn.state = "PROMPTS_GENERATED"
                 db.commit()
 
-            await asyncio.sleep(20)
+            await asyncio.sleep(10)
 
         except Exception as e:
             print(f"Error in prompt generation: {e}")
@@ -103,4 +116,4 @@ async def prompt_generation():
                 db.rollback()
             except:
                 pass
-            await asyncio.sleep(20)
+            await asyncio.sleep(10)
