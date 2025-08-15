@@ -6,6 +6,7 @@ from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.model.topics import Topic
 from app.router.aws_s3 import S3Service
 from app.config import settings
+import re
 
 OPENAI_MODEL = "gpt-4o-mini"
 NUM_OF_QUESTION = 5
@@ -73,12 +74,16 @@ async def prompt_generation():
 
                 # extract the model's output
                 # TODO: comment out this line
-                print(completion.choices[0].message.content)
+                response = completion.choices[0].message.content
+                print(response)
 
                 #####################################################
                 ### step 3: extract information from the response ###
                 #####################################################
                 # TODO: use regular expression
+                pattern = "```json"
+                found = re.search(pattern, response)
+                print(found.start())
 
                 #################################################
                 ### step 4: update question entries in the DB ###
