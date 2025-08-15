@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from app.model import users, schools, streaks, badges, user_badges, points, quizzes, questions, attempts, temp_admins, verification_codes, topics, reference_counts
-from app.repeated_tasks import *
+from app.repeated_tasks.ready import *
+from app.repeated_tasks.question_and_prompt import * 
+from app.repeated_tasks.visuals import *
 import asyncio
 
 
@@ -23,22 +25,15 @@ async def lifespan(app: FastAPI):
     
 
     # Start the background task
-    # hello_world_task = asyncio.create_task(hello_world())
-    # hello_sky_task = asyncio.create_task(hello_sky())
     prompt_task = asyncio.create_task(prompt_generation())
-
 
     ready_task = asyncio.create_task(ready_for_review())
 
     # Add tasks to the set for tracking
-    # background_tasks.add(hello_world_task)
-    # background_tasks.add(hello_sky_task)
     background_tasks.add(prompt_task)
     background_tasks.add(ready_task)
 
     # auto cleanup for taskss
-    # hello_world_task.add_done_callback(background_tasks.discard)
-    # hello_sky_task.add_done_callback(background_tasks.discard) 
     prompt_task.add_done_callback(background_tasks.discard) 
     prompt_task.add_done_callback(background_tasks.discard)
     yield

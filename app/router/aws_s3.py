@@ -151,7 +151,7 @@ class S3Service:
             logger.error(f"Unexpected error deleting from S3: {e}")
             return False
     
-    def get_file_content_by_url(self, s3_url: str) -> Optional[bytes]:
+    def get_file_by_url(self, s3_url: str):
         """
         Get file content from S3 into memory using the full S3 URL (no local file created)
         
@@ -174,10 +174,10 @@ class S3Service:
             )
             
             # Read the file content
-            file_content = response['Body'].read()
+            file = response['Body'].read()
             logger.info(f"Successfully retrieved file content from S3: {s3_url}")
             
-            return file_content
+            return file
             
         except ClientError as e:
             error_code = e.response['Error']['Code']
