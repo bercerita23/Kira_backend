@@ -6,6 +6,7 @@ from app.repeated_tasks.ready import *
 from app.repeated_tasks.question_and_prompt import * 
 from app.repeated_tasks.visuals import *
 import asyncio
+import logging
 
 
 from app.router import (
@@ -23,13 +24,17 @@ async def lifespan(app: FastAPI):
     # Startup logic
     print("Starting up application...")
     
+    # Get logger for startup messages
+    logger = logging.getLogger("uvicorn")
+    logger.info("🚀 Starting background tasks...")
 
     # Start the background task
     prompt_task = asyncio.create_task(prompt_generation())
-
     ready_task = asyncio.create_task(ready_for_review())
-
     visual_task = asyncio.create_task(visual_generation())
+    
+    logger.info("✅ Background tasks created: prompt_generation, ready_for_review, visual_generation")
+
     # Add tasks to the set for tracking
     background_tasks.add(prompt_task)
     background_tasks.add(ready_task)
