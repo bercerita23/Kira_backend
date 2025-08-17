@@ -20,6 +20,8 @@ class Quiz(Base):
     expired_at = Column(DateTime, nullable=True)
     is_locked = Column(Boolean, default=False)
 
+    topic_id = Column(Integer)
+
     # relationship
     school = relationship("School", back_populates="quizzes")
     attempts = relationship("Attempt", back_populates="quiz", cascade="all, delete-orphan")

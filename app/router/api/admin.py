@@ -5,6 +5,8 @@ from app.database import get_db
 from app.schema.admin_schema import *
 from app.router.auth_util import *
 from app.model.topics import Topic 
+from app.model.questions import Question
+from app.model.quizzes import Quiz
 from app.model.users import User
 from app.model.reference_counts import *
 from app.router.dependencies import *
@@ -18,7 +20,6 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
-
 
 router = APIRouter()
 s3_service = S3Service()
@@ -462,6 +463,9 @@ async def decrease_count(
         HTTPException: If topic not found or deletion fails
     """
     selected_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
+    related_questions = db.query(Question).filter(Question.topic_id == selected_topic.topic_id).all()
+    related_quizzes = db.query(Quiz).filter(Quiz.topic_id == selected_topic.topic_id).all()
+
     s3_url = selected_topic.s3_bucket_url
     referred_entry = db.query(ReferenceCount).filter(ReferenceCount.referred_s3_url == s3_url).first()
     referred_entry.count -= 1
@@ -473,6 +477,12 @@ async def decrease_count(
         db.delete(referred_entry)
     # delete the topic 
     db.delete(selected_topic)
+    if related_questions: 
+        for rq in related_questions: 
+            db.delete(rq)
+    if related_quizzes: 
+        for rq in related_quizzes: 
+            db.delete(rq)
     db.commit()
     return {"message": "The content has been deleted."}
     
