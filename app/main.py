@@ -7,8 +7,7 @@ from app.repeated_tasks.question_and_prompt import *
 from app.repeated_tasks.visuals import *
 import asyncio
 import logging
-
-
+from typing import Callable, Dict
 from app.router import (
     auth_router, 
     users_router, 
@@ -17,44 +16,58 @@ from app.router import (
 )
 from app.config import settings
 
+task_locks: Dict[str, asyncio.Lock] = {
+    "prompt_generation": asyncio.Lock(),
+    "ready_for_review": asyncio.Lock(),
+    "visual_generation": asyncio.Lock(),
+}
+async def run_task(name: str, func: Callable, interval: int = 30):
+    """
+    Run a background task periodically, ensuring only one instance
+    of this task is running at a time.
+    """
+    while True:
+        lock = task_locks[name]
+        if lock.locked():
+            # Skip if this task is already running
+            await asyncio.sleep(interval)
+            continue
+
+        async with lock:
+            try:
+                await func()
+            except Exception as e:
+                print(f"Error in {name}: {e}")
+
+        await asyncio.sleep(interval)
+
 background_tasks = set()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic
-    print("Starting up application...")
-    
-    # Get logger for startup messages
     logger = logging.getLogger("uvicorn")
     logger.info("🚀 Starting background tasks...")
 
-    # Start the background task
-    prompt_task = asyncio.create_task(prompt_generation())
-    ready_task = asyncio.create_task(ready_for_review())
-    visual_task = asyncio.create_task(visual_generation())
-    
+    # Start wrapped background tasks (with concurrency control)
+    prompt_task = asyncio.create_task(run_task("prompt_generation", prompt_generation, 30))
+    ready_task = asyncio.create_task(run_task("ready_for_review", ready_for_review, 30))
+    visual_task = asyncio.create_task(run_task("visual_generation", visual_generation, 30))
+
     logger.info("✅ Background tasks created: prompt_generation, ready_for_review, visual_generation")
 
-    # Add tasks to the set for tracking
-    background_tasks.add(prompt_task)
-    background_tasks.add(ready_task)
-    background_tasks.add(visual_task)
+    # Track tasks
+    background_tasks.update([prompt_task, ready_task, visual_task])
 
-    # auto cleanup for tasks
-    prompt_task.add_done_callback(background_tasks.discard)
-    ready_task.add_done_callback(background_tasks.discard)
-    visual_task.add_done_callback(background_tasks.discard)
+    # Auto cleanup
+    for task in [prompt_task, ready_task, visual_task]:
+        task.add_done_callback(background_tasks.discard)
 
     yield
-    
-    # Shutdown logic
-    print("Shutting down application...")
-    
+
     # Cancel all background tasks
     for task in background_tasks:
         task.cancel()
-    
-    # Wait for all tasks to complete cancellation
+
     if background_tasks:
         await asyncio.gather(*background_tasks, return_exceptions=True)
 

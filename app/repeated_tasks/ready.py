@@ -1,45 +1,50 @@
 import asyncio
-from app.database.db import get_local_session
-from app.database.session import SQLALCHEMY_DATABASE_URL
-from app.router.aws_ses import *
+from sqlalchemy import select
+from app.database.db import get_async_db
+from app.router.aws_ses import send_ready_notification
 from app.model.topics import Topic
 from app.model.users import User
 
-
 async def ready_for_review():
-    """Scan for visuals generated entries, change their state to ready for review and send them email 
     """
-    SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
+    Scan for VISUALS_GENERATED entries, change the state of one entry to READY_FOR_REVIEW,
+    and send email notifications.
+    """
     while True:
         try:
-            with SessionLocal() as db:
-                # find entries that are VISUALS_GENERATED
-                ready_entries = db.query(Topic).filter(Topic.state == "VISUALS_GENERATED").all()
+            async with get_async_db() as db:
+                # Step 1: fetch a single VISUALS_GENERATED entry (FIFO)
+                result = await db.execute( 
+                    select(Topic)
+                    .filter(Topic.state == "VISUALS_GENERATED")
+                    .order_by(Topic.updated_at.asc())
+                )
+                entry = result.scalars().first()
 
-                # change the state to READY_FOR_REVIEW
-                for ready_entry in ready_entries:
-                    ready_entry.state = "READY_FOR_REVIEW"
+                if entry is None:
+                    # nothing to process
+                    await asyncio.sleep(30)
+                    continue
 
-                # send admin notification to review
-                school_ids = {re.school_id for re in ready_entries}
-                if school_ids:
-                    admin_emails = (
-                        db.query(User.email)
-                        .filter(User.is_admin == True, User.school_id.in_(school_ids))
-                        .all()
-                    )
-                    for email in admin_emails:
-                        send_ready_notification(email[0])
+                # Step 2: change the state
+                entry.state = "READY_FOR_REVIEW"
 
-                db.commit()
+                # Step 3: send admin notifications
+                result = await db.execute(
+                    select(User.email)
+                    .filter(User.is_admin == True, User.school_id == entry.school_id)
+                )
+                admin_emails = [row[0] for row in result.all()]
+                for email in admin_emails:
+                    print(f"Notification sent to {email}")
+                    send_ready_notification(email)
 
-            await asyncio.sleep(10)
+                # Step 4: commit changes
+                await db.commit()
+
+            # sleep a bit before processing the next entry
+            await asyncio.sleep(30)
 
         except Exception as e:
-            print(f"Error in repeated task: {e}")
-            # rollback just in case
-            try:
-                db.rollback()
-            except:
-                pass
-            await asyncio.sleep(10)
+            print(f"Error in ready_for_review task: {e}")
+            await asyncio.sleep(30)

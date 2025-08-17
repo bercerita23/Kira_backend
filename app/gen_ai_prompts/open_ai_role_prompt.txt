@@ -18,9 +18,9 @@ You must:
     a. example: What is the word "banana" in Bahasa Indonesia? with Bahasa Indonesia in 4 of the choices.
   2. Fill-in-the-blank (FITB): 1 correct answer that requires the input from the user.
     a. format requirement: The "black" part(underscore) of the original sentence should match the number of characters in the answer.
-      example: The monkey Kira likes to eat a b _ _ _ _ _ (the correct answer should be banana).
-      explaination: the answer should be the word banana, while the return question will have the character b as the hint, and _ _ _ _ _ as the black part that requries user input. 
-      explaination: the number of underscore should be the same as the number of characters in the answers. 
+      example: The monkey Kira likes to eat a ___ (the correct answer is banana).
+      explaination: the answer is banana, doesn't matter the length of the answer, always return 3 dashes as the balnk space.
+      explaination: the answer shouldn't contain any dot, comma, question mark, or exclamation mark.
 - A set of quiz question should be mixed with a randomized number of each type of questions. 
 - For example, 5 questions -> quiz 1: 3 MCQ + 2 FITB, quiz 2: 2 MCQ + 3 FITB
 - Use language that is age-appropriate for Indonesian elementary school students.
@@ -32,7 +32,7 @@ You must:
   1. be between 20 to 40 words. 
   2. captures the essense the of that particular question and suits the theme / main idea of the question. 
   3. In clude this message in the prompt "Do not directly give out the answer in the visual prompt, but hints or items related to the options or the correct answer is allowed."
-  4. For example, for a Fill-in-the-black type of question, "The monkey Kira likes to eat a _ _ _ _ _ _.", the prompt can be "Generate a image of cartoon-ish monkey that is eating a banana and some other banana that are scattered around the monkey".
+  4. For example, for a Fill-in-the-black type of question, "The monkey Kira likes to eat a ___", the prompt can be "Generate a image of cartoon-ish monkey that is eating a banana and some other banana that are scattered around the monkey, but don't spell banana on the visual".
 
 **Output format for each type of question (JSON only, no extra text)**:
 {

@@ -1,7 +1,8 @@
 import asyncio
 import io
 from openai import OpenAI
-from app.database.db import get_local_session
+from sqlalchemy import select
+from app.database.db import get_async_db
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.model.topics import Topic
 from app.model.questions import *
@@ -14,25 +15,20 @@ NUM_OF_QUESTION = 5
 s3_service = S3Service()
 
 async def prompt_generation():
-    SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
     while True:
         try:
-            with SessionLocal() as db:
+            async with get_async_db() as db:
                 ###########################################################
                 ### step 1: get the entry in READY_FOR_GENERATION state ###
                 ###########################################################
-                rn = (
-                    db.query(Topic)
-                    .filter(Topic.state == "READY_FOR_GENERATION")
-                    .order_by(Topic.updated_at.asc())  # FIFO
-                    .first()
-                )
-
+                rn = (await db.execute(select(Topic)
+                        .filter(Topic.state == "READY_FOR_GENERATION")
+                        .order_by(Topic.updated_at.asc()))).scalars().first()
                 # if no entry at the state, return the control back to the loop after 20 secs
                 if not rn:
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(30)
                     continue
                 
                 # else get the pdf from S3 as bytes
@@ -75,14 +71,22 @@ async def prompt_generation():
 
                 # extract the model's outputs
                 response = completion.choices[0].message.content
+
                 #####################################################
                 ### step 3: extract information from the response ###
                 #####################################################
                 json_match = re.search(r"```json(.*?)```", response, re.DOTALL)
-                if not json_match: 
-                    raise Exception("No json found in the response")
-                json_str = json_match.group(1).strip()
-                data = json.loads(json_str)
+
+                if json_match:
+                    json_str = json_match.group(1).strip()
+                else:
+                    json_str = response.strip()
+
+                try:
+                    data = json.loads(json_str)
+                except json.JSONDecodeError:
+                    # fallback: return None or raise
+                    raise Exception("No json found in the response in either formats")
 
                 #################################################
                 ### step 4: update question entries in the DB ###
@@ -104,14 +108,10 @@ async def prompt_generation():
                 
                 # change to next state
                 rn.state = "PROMPTS_GENERATED"
-                db.commit()
+                await db.commit()
 
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)
 
         except Exception as e:
             print(f"Error in prompt generation: {e}")
-            try:
-                db.rollback()
-            except:
-                pass
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)

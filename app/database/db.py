@@ -1,6 +1,8 @@
-from typing import Generator
+from typing import Generator, AsyncGenerator
 from contextlib import contextmanager
-from app.database.session import SQLALCHEMY_DATABASE_URL, get_local_session
+from app.database.session import SQLALCHEMY_DATABASE_URL, get_local_session, get_async_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from contextlib import asynccontextmanager
 # from app.exceptions import SQLAlchemyException
 
 from app.log import get_logger
@@ -24,6 +26,12 @@ def get_db() -> Generator:  # pragma: no cover
         yield db
     finally:  # pragma: no cover
         db.close()  # pragma: no cover
+
+@asynccontextmanager
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    async_session_maker = get_async_session(SQLALCHEMY_DATABASE_URL, False)
+    async with async_session_maker() as session:
+        yield session
 
 
 @contextmanager

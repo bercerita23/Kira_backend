@@ -3,10 +3,9 @@ from botocore.exceptions import ClientError, NoCredentialsError
 import os
 from typing import Optional
 from app.config import settings
-import logging
 import re
+import logging as logger
 
-logger = logging.getLogger(__name__)
 
 class S3Service:
     def __init__(self):
