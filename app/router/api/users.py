@@ -22,7 +22,7 @@ from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.router.background.badges_task import check_and_award_badges
 from app.router.background.achievement_task import check_achievement_and_award
 from app.router.background.streak_task import update_streak
-from app.utils.s3_signer import presign_get
+from app.router.s3_signer import presign_get
 
 router = APIRouter()
 
