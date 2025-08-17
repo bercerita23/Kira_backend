@@ -75,7 +75,7 @@ async def prompt_generation():
 
                 # extract the model's outputs
                 response = completion.choices[0].message.content
-
+                print(response)
                 #####################################################
                 ### step 3: extract information from the response ###
                 #####################################################

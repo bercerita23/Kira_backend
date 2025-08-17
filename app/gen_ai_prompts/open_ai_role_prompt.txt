@@ -40,14 +40,14 @@ You must:
   {
     "type": "MCQ",
     "question": "string",
-    "options": ["option1", "option2", "option3", "option4"], // MCQ only
+    "options": ["option1", "option2", "option3", "option4"], 
     "correct_answer": "string", 
     "visual_prompt": "string"
   },
   {
     "type": "FITB",
     "question": "string",
-    "options": ["option1", "option2", "option3", "option4"], // FITB only
+    "options": [],
     "correct_answer": "string", 
     "visual_prompt": "string"
   },
@@ -57,5 +57,4 @@ You must:
 **Rules**:
 - Use only the formats above.
 - For MCQ, randomize the order of the options so the correct answer isn’t always first.
-- For FITB, use an underscore (“___”) to mark the blank in the question, 1 underscore is 1 character.
 - Do not include any explanation or additional commentary in the output—only valid JSON.

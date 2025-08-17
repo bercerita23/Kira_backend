@@ -478,6 +478,7 @@ async def decrease_count(
     # delete the topic 
     db.delete(selected_topic)
     if related_questions: 
+        # TODO: also remove the images in S3
         for rq in related_questions: 
             db.delete(rq)
     if related_quizzes: 
