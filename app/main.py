@@ -55,7 +55,7 @@ from app.config import settings
 #        await asyncio.gather(*background_tasks, return_exceptions=True)
 
 
-app = FastAPI(lifespan=lifespan, 
+app = FastAPI(
               title=settings.PROJECT_NAME, 
               version=settings.API_VERSION) 
 
