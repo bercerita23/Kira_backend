@@ -31,7 +31,7 @@ You must:
 - The visual_prompt you return should:
   1. be between 20 to 40 words. 
   2. captures the essense the of that particular question and suits the theme / main idea of the question. 
-  3. Do not directly give out the answer in the visual prompt, but hints or items related to the options or the correct answer is allowed.
+  3. In clude this message in the prompt "Do not directly give out the answer in the visual prompt, but hints or items related to the options or the correct answer is allowed."
   4. For example, for a Fill-in-the-black type of question, "The monkey Kira likes to eat a _ _ _ _ _ _.", the prompt can be "Generate a image of cartoon-ish monkey that is eating a banana and some other banana that are scattered around the monkey".
 
 **Output format for each type of question (JSON only, no extra text)**:

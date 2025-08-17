@@ -75,7 +75,6 @@ async def prompt_generation():
 
                 # extract the model's outputs
                 response = completion.choices[0].message.content
-                print(response)
                 #####################################################
                 ### step 3: extract information from the response ###
                 #####################################################
@@ -84,7 +83,6 @@ async def prompt_generation():
                     raise Exception("No json found in the response")
                 json_str = json_match.group(1).strip()
                 data = json.loads(json_str)
-                print(data)
 
                 #################################################
                 ### step 4: update question entries in the DB ###

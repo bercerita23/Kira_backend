@@ -470,8 +470,8 @@ async def decrease_count(
     referred_entry = db.query(ReferenceCount).filter(ReferenceCount.referred_s3_url == s3_url).first()
     referred_entry.count -= 1
 
+    s3_service = S3Service()
     if referred_entry.count == 0: # delete the entry and delete it in S3
-        s3_service = S3Service()
         s3_service.delete_file_by_url(referred_entry.referred_s3_url)
         # delete file on S3 
         db.delete(referred_entry)
@@ -480,6 +480,7 @@ async def decrease_count(
     if related_questions: 
         # TODO: also remove the images in S3
         for rq in related_questions: 
+            s3_service.delete_file_by_url(rq.image_url)
             db.delete(rq)
     if related_quizzes: 
         for rq in related_quizzes: 
