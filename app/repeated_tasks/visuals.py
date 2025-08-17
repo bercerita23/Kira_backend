@@ -25,7 +25,7 @@ async def visual_generation():
       - upload PNG bytes to S3 using the SAME method/signature as /content-upload
       - write image_url back, and flip Topic to VISUALS_GENERATED if any were created
     """
-    print("🎨 Visual generation task started!")
+    print(" Visual generation task started!")
     
     SessionLocal = get_local_session(SQLALCHEMY_DATABASE_URL)
     s3_service = S3Service()
@@ -34,24 +34,24 @@ async def visual_generation():
     try:
         client = genai.Client(api_key=settings.GOOGLE_API_KEY)
         model_name = "gemini-2.0-flash-preview-image-generation"
-        print("✅ Gemini client initialized successfully")
+        print(" Gemini client initialized successfully")
     except Exception as e:
-        print(f"❌ Failed to initialize Gemini client: {e}")
+        print(f" Failed to initialize Gemini client: {e}")
         return
 
     # Load Gemini role prompt
     try:
         with open("app/gen_ai_prompts/gemini_role_prompt.txt", encoding="utf-8") as f:
             gemini_role_prompt = f.read()
-        print("✅ Loaded gemini_role_prompt.txt")
+        print(" Loaded gemini_role_prompt.txt")
     except FileNotFoundError:
         gemini_role_prompt = "Create an educational image based on the following prompt:"
-        print("⚠️ gemini_role_prompt.txt not found, using default prompt")
+        print(" gemini_role_prompt.txt not found, using default prompt")
 
     iteration_count = 0
     while True:
         iteration_count += 1
-        print(f"🔄 Visual generation loop iteration {iteration_count}")
+        
         
         try:
             with SessionLocal() as db:
@@ -65,11 +65,11 @@ async def visual_generation():
                 )
 
                 if not topic:
-                    print("😴 No topics in PROMPTS_GENERATED state, sleeping...")
+                    
                     await asyncio.sleep(10)
                     continue
 
-                print(f"🎯 Processing topic {topic.topic_id}: '{topic.topic_name}' (School: {topic.school_id})")
+                print(f" Processing topic {topic.topic_id}: '{topic.topic_name}' (School: {topic.school_id})")
 
                 # Gather questions that still need visuals - fix the filtering logic
                 q_need = []
@@ -79,17 +79,17 @@ async def visual_generation():
                         (q.image_url is None or q.image_url == "" or q.image_url.strip() == "")):
                         q_need.append(q)
 
-                print(f"📊 Topic has {len(topic.questions)} total questions, {len(q_need)} need visuals")
+                print(f" Topic has {len(topic.questions)} total questions, {len(q_need)} need visuals")
 
                 if not q_need:
                     # Nothing to do for this topic; mark as done
                     topic.state = "VISUALS_GENERATED"
                     db.add(topic)
                     db.commit()
-                    print(f"✅ Topic {topic.topic_id} marked as VISUALS_GENERATED (no questions needed visuals)")
+                    print(f" Topic {topic.topic_id} marked as VISUALS_GENERATED (no questions needed visuals)")
                     continue
 
-                print(f"🖼️ Found {len(q_need)} questions needing visuals in topic {topic.topic_id}")
+                print(f" Found {len(q_need)} questions needing visuals in topic {topic.topic_id}")
 
                 made_any = False
                 school_id = getattr(topic, "school_id", "unknown")
@@ -98,8 +98,8 @@ async def visual_generation():
                 for i, q in enumerate(q_need, 1):
                     try:
                         prompt_text = q.image_prompt.strip()
-                        print(f"🎨 Generating image {i}/{len(q_need)} for question {q.question_id}")
-                        print(f"📝 Image prompt: {prompt_text[:100]}...")
+                        print(f" Generating image {i}/{len(q_need)} for question {q.question_id}")
+                        print(f" Image prompt: {prompt_text[:100]}...")
 
                         # Combine role prompt with image prompt
                         full_prompt = f"{gemini_role_prompt}\n\n{prompt_text}"
@@ -118,27 +118,27 @@ async def visual_generation():
                         image_obj = None
                         for part in response.candidates[0].content.parts:
                             if part.text is not None:
-                                print(f"📄 Gemini response text: {part.text}")
+                                print(f" Gemini response text: {part.text}")
                             elif part.inline_data is not None:
                                 image_obj = Image.open(io.BytesIO(part.inline_data.data))
                                 break
 
                         if image_obj is None:
-                            print(f"⚠️ No image generated for question {q.question_id}")
+                            print(f" No image generated for question {q.question_id}")
                             continue
 
-                        print(f"✅ Image generated successfully for question {q.question_id} ({image_obj.size})")
+                        print(f"Image generated successfully for question {q.question_id} ({image_obj.size})")
 
                         # 3) Convert to PNG bytes
                         buf = io.BytesIO()
                         image_obj.save(buf, format="PNG")
                         buf.seek(0)
                         png_bytes = buf.getvalue()
-                        print(f"📦 PNG conversion complete: {len(png_bytes)} bytes")
+                        print(f" PNG conversion complete: {len(png_bytes)} bytes")
 
                         # 4) Upload to S3 the SAME way as /content-upload
                         filename = f"t{topic.topic_id}/q{q.question_id}.png"
-                        print(f"☁️ Uploading to S3: {filename}")
+                        print(f" Uploading to S3: {filename}")
                         
                         s3_url = s3_service.upload_file_to_s3(
                             file_content=png_bytes,
@@ -150,7 +150,7 @@ async def visual_generation():
                         )
 
                         if not s3_url:
-                            print(f"❌ S3 upload failed for question {q.question_id}")
+                            print(f" S3 upload failed for question {q.question_id}")
                             continue
 
                         # 5) Save URL & commit each question
@@ -158,11 +158,11 @@ async def visual_generation():
                         db.add(q)
                         db.commit()
                         made_any = True
-                        print(f"✅ Successfully processed question {q.question_id}")
-                        print(f"🔗 Image URL: {s3_url}")
+                        print(f" Successfully processed question {q.question_id}")
+                        print(f" Image URL: {s3_url}")
 
                     except Exception as q_err:
-                        print(f"❌ Error processing question {q.question_id}: {str(q_err)}")
+                        print(f" Error processing question {q.question_id}: {str(q_err)}")
                         try:
                             db.rollback()
                         except:
@@ -173,14 +173,14 @@ async def visual_generation():
                     topic.state = "VISUALS_GENERATED"
                     db.add(topic)
                     db.commit()
-                    print(f"🎉 Topic {topic.topic_id} completed - marked as VISUALS_GENERATED")
+                    print(f" Topic {topic.topic_id} completed - marked as VISUALS_GENERATED")
                 else:
-                    print(f"⚠️ No images were successfully generated for topic {topic.topic_id}")
+                    print(f" No images were successfully generated for topic {topic.topic_id}")
 
             await asyncio.sleep(5)  # Shorter sleep since we're processing one at a time
 
         except Exception as e:
-            print(f"❌ Error in visual_generation task (iteration {iteration_count}): {str(e)}")
+            print(f" Error in visual_generation task (iteration {iteration_count}): {str(e)}")
             import traceback
-            print(f"🔍 Traceback: {traceback.format_exc()}")
+            print(f" Traceback: {traceback.format_exc()}")
             await asyncio.sleep(10)
