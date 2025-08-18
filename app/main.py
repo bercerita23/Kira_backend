@@ -65,14 +65,14 @@ background_tasks = set()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger = logging.getLogger("uvicorn")
-    logger.info("🚀 Starting background tasks...")
+    logger.info("Starting background tasks...")
 
     # Start wrapped background tasks (with concurrency control)
     prompt_task = asyncio.create_task(run_task("prompt_generation", prompt_generation, 30))
     ready_task = asyncio.create_task(run_task("ready_for_review", ready_for_review, 30))
     visual_task = asyncio.create_task(run_task("visual_generation", visual_generation, 30))
 
-    logger.info("✅ Background tasks created: prompt_generation, ready_for_review, visual_generation")
+    logger.info("Background tasks created: prompt_generation, ready_for_review, visual_generation")
 
     # Track tasks
     background_tasks.update([prompt_task, ready_task, visual_task])
