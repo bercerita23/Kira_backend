@@ -58,7 +58,7 @@ async def prompt_generation():
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Return {NUM_OF_QUESTION} questions in total about that pdf."},
+                        {"type": "text", "text": f"Return {NUM_OF_QUESTION} questions in total of the pdf file that was given to you."},
                         {"type": "file", "file": {"file_id": uploaded_file.id}}
                     ]
                 }
