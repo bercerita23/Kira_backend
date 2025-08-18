@@ -65,60 +65,105 @@ async def visual_generation():
             week_number = getattr(topic, "week_number", 0)
 
             for i, q in enumerate(q_need, 1):
-                try:
-                    prompt_text = q.image_prompt.strip()
-                    full_prompt = f"{gemini_role_prompt}\n\n{prompt_text}"
-
-                    # Gemini API call (blocking) — can wrap in executor if needed
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=full_prompt,
-                        config=types.GenerateContentConfig(response_modalities=['TEXT','IMAGE'])
-                    )
-
-                    # Extract image
-                    image_obj = None
-                    for part in response.candidates[0].content.parts:
-                        if part.inline_data is not None:
-                            image_obj = Image.open(io.BytesIO(part.inline_data.data))
-                            break
-
-                    if not image_obj:
-                        print(f"No image generated for question {q.question_id}")
-                        continue
-
-                    # Convert to PNG bytes
-                    buf = io.BytesIO()
-                    image_obj.save(buf, format="PNG")
-                    buf.seek(0)
-                    png_bytes = buf.getvalue()
-
-                    # Upload to S3
-                    filename = f"t{topic.topic_id}/q{q.question_id}.png"
-                    s3_url = s3_service.upload_file_to_s3(
-                        file_content=png_bytes,
-                        school_id=str(school_id),
-                        filename=filename,
-                        week_number=week_number,
-                        content_type='image/png',
-                        folder_prefix='visuals'
-                    )
-
-                    if not s3_url:
-                        print(f"S3 upload failed for question {q.question_id}")
-                        continue
-
-                    q.image_url = s3_url
-                    db.add(q)
-                    await db.commit()
-                    made_any = True
-
-                except Exception as q_err:
-                    print(f"Error processing question {q.question_id}: {q_err}")
+                max_retries = 3  # Maximum number of retry attempts
+                retry_count = 0
+                image_generated = False
+                
+                while retry_count < max_retries and not image_generated:
                     try:
-                        await db.rollback()
-                    except:
-                        pass
+                        retry_count += 1
+                        prompt_text = q.image_prompt.strip()
+                        full_prompt = f"{gemini_role_prompt}\n\n{prompt_text}"
+
+                        print(f"Generating image {i}/{len(q_need)} for question {q.question_id} (attempt {retry_count}/{max_retries})")
+
+                        # Gemini API call (blocking) — can wrap in executor if needed
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=full_prompt,
+                            config=types.GenerateContentConfig(response_modalities=['TEXT','IMAGE'])
+                        )
+
+                        # Extract image
+                        image_obj = None
+                        if response.candidates and len(response.candidates) > 0 and response.candidates[0].content:
+                            for part in response.candidates[0].content.parts:
+                                if part.inline_data is not None and part.inline_data.data:
+                                    image_obj = Image.open(io.BytesIO(part.inline_data.data))
+                                    break
+                            
+                        if not image_obj:
+                            print(f"No image generated for question {q.question_id} (attempt {retry_count}/{max_retries})")
+                            if retry_count < max_retries:
+                                print(f"Retrying image generation...")
+                                await asyncio.sleep(2)  # Wait before retry
+                                continue  # Retry image generation
+                            else:
+                                print(f"Failed to generate image after {max_retries} attempts")
+                                break  # Move to next question
+                        
+                        # Convert to PNG bytes
+                        buf = io.BytesIO()
+                        image_obj.save(buf, format="PNG")
+                        buf.seek(0)
+                        png_bytes = buf.getvalue()
+
+                        # Validate image bytes
+                        if not png_bytes or len(png_bytes) == 0:
+                            print(f"Generated image is empty for question {q.question_id} (attempt {retry_count}/{max_retries})")
+                            if retry_count < max_retries:
+                                print(f"Retrying due to empty image...")
+                                await asyncio.sleep(2)
+                                continue
+                            else:
+                                print(f"Failed to generate valid image after {max_retries} attempts")
+                                break
+
+                        # Upload to S3
+                        filename = f"t{topic.topic_id}/q{q.question_id}.png"
+                        s3_url = s3_service.upload_file_to_s3(
+                            file_content=png_bytes,
+                            school_id=str(school_id),
+                            filename=filename,
+                            week_number=week_number,
+                            content_type='image/png',
+                            folder_prefix='visuals'
+                        )
+
+                        if not s3_url:
+                            print(f"S3 upload failed for question {q.question_id} (attempt {retry_count}/{max_retries})")
+                            if retry_count < max_retries:
+                                print(f"Retrying S3 upload...")
+                                await asyncio.sleep(2)
+                                continue  # Retry the whole process
+                            else:
+                                print(f"Failed to upload after {max_retries} attempts")
+                                break
+                        
+                        # Success!
+                        q.image_url = s3_url
+                        db.add(q)
+                        await db.commit()
+                        made_any = True
+                        image_generated = True
+                        print(f"Successfully processed question {q.question_id} on attempt {retry_count}")
+
+                    except Exception as q_err:
+                        print(f"Error processing question {q.question_id} (attempt {retry_count}/{max_retries}): {q_err}")
+                        if retry_count < max_retries:
+                            print(f"Retrying due to error...")
+                            await asyncio.sleep(2)
+                            try:
+                                await db.rollback()
+                            except:
+                                pass
+                        else:
+                            print(f"Failed after {max_retries} attempts due to errors")
+                            try:
+                                await db.rollback()
+                            except:
+                                pass
+                            break
 
             if made_any:
                 topic.state = "VISUALS_GENERATED"
@@ -131,4 +176,4 @@ async def visual_generation():
     except Exception as e:
         print(f"Error in visual_generation task: {e}")
         await db.rollback()
-        raise  # Let the outer loop handle the error
+        raise  
