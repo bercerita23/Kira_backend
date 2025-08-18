@@ -2,17 +2,23 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
-from datetime import datetime
+
+## App Model Imports 
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
+from app.model.schools import School
 from app.model.temp_admins import TempAdmin
-from app.schema.super_admin_schema import *
+
 from typing import Any, Dict
+from uuid import uuid4
+from app.schema.super_admin_schema import *
+
+## Router Imports
 from app.router.aws_ses import *
 from app.router.auth_util import *
-from uuid import uuid4
-from app.model.schools import School
 from app.router.dependencies import *
+
+## Python Library Imports
 from datetime import datetime
 
 router = APIRouter()

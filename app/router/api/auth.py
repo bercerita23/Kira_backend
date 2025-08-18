@@ -1,18 +1,22 @@
 from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from app.router.auth_util import *
 from app.config import settings
 from app.database import get_db
+
+## Schema Imports
 from app.schema.admin_schema import *
 from app.schema.auth_schema import *
+
+## Model Imports
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
 from app.model.temp_admins import TempAdmin
+from app.model.schools import School
+
 from app.router.dependencies import *
 from app.router.aws_ses import *
-from app.model.schools import School
 from uuid import uuid4
 
 

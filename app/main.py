@@ -11,6 +11,7 @@ from app.router import (
     users_router, 
     super_admin_router, 
     admin_router,
+    quiz_router
 )
 from app.config import settings
 
@@ -76,6 +77,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(users_router, prefix="/users", tags=["User"])
+app.include_router(quiz_router, prefix="/users", tags=["User"])
 app.include_router(super_admin_router, prefix="/super_admin", tags=["Super Admin"])
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 
