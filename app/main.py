@@ -26,20 +26,39 @@ async def run_task(name: str, func: Callable, interval: int = 30):
     Run a background task periodically, ensuring only one instance
     of this task is running at a time.
     """
+    consecutive_errors = 0
+    max_backoff = 300  # 5 minutes
+
     while True:
         lock = task_locks[name]
         if lock.locked():
-            # Skip if this task is already running
+            # Another instance is running, wait for next interval
             await asyncio.sleep(interval)
             continue
 
-        async with lock:
-            try:
-                await func()
-            except Exception as e:
-                print(f"Error in {name}: {e}")
+        try:
+            async with lock:
+                try:
+                    await func()
+                    consecutive_errors = 0  # Reset on success
+                except Exception as e:
+                    consecutive_errors += 1
+                    error_msg = str(e)
+                    print(f"Error in {name}: {error_msg}")
+                    
+                    # Exponential backoff on connection errors
+                    if "remaining connection slots are reserved" in error_msg:
+                        backoff = min(interval * (2 ** consecutive_errors), max_backoff)
+                        print(f"{name}: Connection pool exhausted, backing off for {backoff}s")
+                        await asyncio.sleep(backoff)
+                        continue
 
-        await asyncio.sleep(interval)
+            # Normal interval between runs
+            await asyncio.sleep(interval)
+
+        except Exception as outer_e:
+            print(f"Critical error in task runner for {name}: {outer_e}")
+            await asyncio.sleep(interval)
 
 background_tasks = set()
 

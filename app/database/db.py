@@ -30,8 +30,22 @@ def get_db() -> Generator:  # pragma: no cover
 @asynccontextmanager
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     async_session_maker = get_async_session(SQLALCHEMY_DATABASE_URL, False)
-    async with async_session_maker() as session:
+    session = None
+    try:
+        session = async_session_maker()
         yield session
+    except Exception as e:
+        if session:
+            await session.rollback()
+        raise
+    finally:
+        if session:
+            try:
+                await session.close()
+            except Exception as e:
+                log.error(f"Error closing session: {e}")
+            finally:
+                session = None
 
 
 @contextmanager

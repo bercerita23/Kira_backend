@@ -33,7 +33,6 @@ def check_achievement_and_award(user_id: str):
         # fetch all user unlocked achievement 
         unlocked_achievement = db.query(UserAchievement.achievement_id).filter(UserAchievement.user_id == user_id).all()
         unlocked_set = set(u.achievement_id for u in unlocked_achievement)
-
         ############## DONE!
         ### ACH001 ### 
         ############## 
@@ -192,19 +191,19 @@ def check_achievement_and_award(user_id: str):
         if 'ACH007' not in unlocked_set: 
             temp = db.query(Attempt).filter(Attempt.user_id == user_id).all()
             points = db.query(Points).filter(Points.user_id == user_id).first()
-        for atm in temp: 
-            if(atm.attempt_number == 2): 
-                new_achievement = UserAchievement(
-                        user_id = user_id,
-                        achievement_id = 'ACH007', 
-                        completed_at = datetime.now(), 
-                        view_count = 0
-                    )
-                points.points += 5
-                db.add(new_achievement)
-                db.commit() 
-                db.refresh(new_achievement)
-                break
+            for atm in temp: 
+                if(atm.attempt_number == 2): 
+                    new_achievement = UserAchievement(
+                            user_id = user_id,
+                            achievement_id = 'ACH007', 
+                            completed_at = datetime.now(), 
+                            view_count = 0
+                        )
+                    points.points += 5
+                    db.add(new_achievement)
+                    db.commit() 
+                    db.refresh(new_achievement)
+                    break
 
     finally: 
         db.close()
