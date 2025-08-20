@@ -604,7 +604,7 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
     return QuestionsOut(questions=response_questions)
 
 @router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
-async def approve_topic(topic_id : str, approved_questions: ApproveQuestions, admin : User = Depends(get_current_admin), db: Session = Depends(get_db)):
+async def approve_topic(topic_id : int, approved_questions: ApproveQuestions, admin : User = Depends(get_current_admin), db: Session = Depends(get_db)):
     if not approved_questions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
