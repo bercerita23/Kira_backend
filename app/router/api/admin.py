@@ -567,6 +567,16 @@ async def content_upload(
 
 @router.get("/review-questions/{topic_id}", response_model=QuestionsOut, status_code=status.HTTP_200_OK)
 async def get_topic_questions(topic_id : str, db: Session = Depends(get_db),  admin : User = Depends(get_current_admin))-> Dict[str, Any]:
+    '''
+        get all review questions with the same topic_id
+
+        args: 
+            topic_id : topic Id being querried
+            db (Session, optional): _description_. Defaults to Depends(get_db).
+            admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+        Returns:
+
+    '''
     query_result= db.query(Question).where(Question.topic_id == topic_id).order_by(Question.question_id, 'desc')
     questions_list = query_result.all()
 
@@ -580,14 +590,23 @@ async def get_topic_questions(topic_id : str, db: Session = Depends(get_db),  ad
 
 @router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
 async def approve_topic(topic_id : str, approved_questions: ApproveQuestions, admin : User = Depends(get_current_admin), db: Session = Depends(get_db)):
+    if not approved_questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="no approved questions given"
+        )
     '''
-        Approve topic questions based on topic. 
+        Approve topic questions based on topic_id. 
         
         args:
             topic_id : topic Id being approved
             approved_questions : a list of approved questions 
             db (Session, optional): _description_. Defaults to Depends(get_db).
             admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+            
+        Returns:
+            _type_: _description_
+
     '''
     query_result= db.query(Question).where(Question.topic_id == topic_id).with_for_update().order_by(Question.question_id, 'desc')
     questions_list = query_result.all()
