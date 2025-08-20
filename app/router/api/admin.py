@@ -6,7 +6,7 @@ from app.schema.admin_schema import *
 from app.schema.user_schema import ApproveQuestions
 from app.router.auth_util import *
 from app.model.topics import Topic 
-from app.model.questions import Question
+from app.model.questions import Question as QuestionModel
 from app.model.quizzes import Quiz
 from app.model.users import User
 from app.model.reference_counts import *
@@ -21,7 +21,8 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
-from app.schema.user_schema import QuestionsOut
+from app.schema.user_schema import QuestionsOut, Question as QuestionSchema
+from app.router.s3_signer import presign_get
 
 router = APIRouter()
 s3_service = S3Service()
@@ -465,7 +466,7 @@ async def decrease_count(
         HTTPException: If topic not found or deletion fails
     """
     selected_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
-    related_questions = db.query(Question).filter(Question.topic_id == selected_topic.topic_id).all()
+    related_questions = db.query(QuestionModel).filter(QuestionModel.topic_id == selected_topic.topic_id).all()
     related_quizzes = db.query(Quiz).filter(Quiz.topic_id == selected_topic.topic_id).all()
 
     s3_url = selected_topic.s3_bucket_url
@@ -566,7 +567,7 @@ async def content_upload(
     }
 
 @router.get("/review-questions/{topic_id}", response_model=QuestionsOut, status_code=status.HTTP_200_OK)
-async def get_topic_questions(topic_id : str, db: Session = Depends(get_db),  admin : User = Depends(get_current_admin))-> Dict[str, Any]:
+async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  admin : User = Depends(get_current_admin))-> Dict[str, Any]:
     '''
         get all review questions with the same topic_id
 
@@ -577,16 +578,30 @@ async def get_topic_questions(topic_id : str, db: Session = Depends(get_db),  ad
         Returns:
 
     '''
-    query_result= db.query(Question).where(Question.topic_id == topic_id).order_by(Question.question_id, text('desc'))
+    query_result= db.query(QuestionModel).where(QuestionModel.topic_id == topic_id)
     questions_list = query_result.all()
 
-    if  len(questions_list) == 0: 
+    response_questions: List[QuestionSchema] = []
+    for question in questions_list: 
+        signed_url = presign_get(question.image_url)
+        response_questions.append(QuestionSchema(
+            question_id=question.question_id,
+            content=question.content,
+            options=question.options,
+            question_type=question.question_type,
+            points=question.points,
+            answer=question.answer,
+            image_url=signed_url
+            )
+        )
+
+    if  len(response_questions) == 0: 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="topic id not found"
             )
-    
-    return QuestionsOut(questions=questions_list)
+    print(response_questions)
+    return QuestionsOut(questions=response_questions)
 
 @router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
 async def approve_topic(topic_id : str, approved_questions: ApproveQuestions, admin : User = Depends(get_current_admin), db: Session = Depends(get_db)):
@@ -608,7 +623,7 @@ async def approve_topic(topic_id : str, approved_questions: ApproveQuestions, ad
             _type_: _description_
 
     '''
-    query_result= db.query(Question).where(Question.topic_id == topic_id).with_for_update().order_by(Question.question_id, text('desc'))
+    query_result= db.query(QuestionModel).where(QuestionModel.topic_id == topic_id).with_for_update()
     questions_list = query_result.all()
 
     if  len(questions_list) == 0: 
