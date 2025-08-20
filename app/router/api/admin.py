@@ -21,8 +21,10 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
-from app.schema.user_schema import QuestionsOut, Question as QuestionSchema
+from app.schema.user_schema import Question as QuestionSchema, ReviewQuestions
 from app.router.s3_signer import presign_get
+from datetime import datetime
+import random
 
 router = APIRouter()
 s3_service = S3Service()
@@ -566,7 +568,7 @@ async def content_upload(
         "message": f"File {file.filename} has been successfully uploaded."
     }
 
-@router.get("/review-questions/{topic_id}", response_model=QuestionsOut, status_code=status.HTTP_200_OK)
+@router.get("/review-questions/{topic_id}", response_model=ReviewQuestions, status_code=status.HTTP_200_OK)
 async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  admin : User = Depends(get_current_admin))-> Dict[str, Any]:
     '''
         get all review questions with the same topic_id
@@ -579,6 +581,7 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
 
     '''
     query_result= db.query(QuestionModel).where(QuestionModel.topic_id == topic_id)
+    topic_query = db.query(Topic).where(Topic.topic_id == topic_id).limit(1).all()
     questions_list = query_result.all()
 
     response_questions: List[QuestionSchema] = []
@@ -601,10 +604,20 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
             detail="topic id not found"
             )
     print(response_questions)
-    return QuestionsOut(questions=response_questions)
+    return ReviewQuestions (
+        quiz_name = topic_query[0].topic_name, 
+        quiz_description = "", 
+        questions = response_questions
+        )
+
 
 @router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
-async def approve_topic(topic_id : int, approved_questions: ApproveQuestions, admin : User = Depends(get_current_admin), db: Session = Depends(get_db)):
+async def approve_topic(
+    topic_id : int, 
+    approved_questions: ApproveQuestions, 
+    user : User = Depends(get_current_admin), 
+    db: Session = Depends(get_db), 
+    ):
     if not approved_questions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
@@ -637,19 +650,37 @@ async def approve_topic(topic_id : int, approved_questions: ApproveQuestions, ad
             detail="approved questions do not match topic ID"
         )
     
+    question_id_list = []
+    
     # Only update changed and changeable fields
     for approved_question in approved_questions.questions:
         for question in questions_list:
             if question.question_id == approved_question.question_id:
+                question_id_list.append(question.question_id)
                 if question.answer != approved_question.answer:
                     question.answer = approved_question.answer
                 if question.content != approved_question.content:
                     question.content = approved_question.content
                 if question.options != approved_question.options:
                     question.options = approved_question.options
-                if question.image_url != approved_question.image_url:
-                    question.image_url = approved_question.image_url
     # Commit changed 
     db.commit()
 
-    return {"message" : "Topic id {topic_id} has been approved"}
+    for i in range(3) :
+        randomized_questions = random.shuffle(question_id_list)
+        new_quiz = Quiz(
+            name = approved_questions.quiz_name, 
+            description = approved_questions.quiz_description if approved_questions.quiz_description != None else "", 
+            school_id = user.school_id,
+            creator_id = user.user_id, 
+            questions = randomized_questions,
+            topic_id = topic_id, 
+            expired_at = None, 
+            is_locked = False, 
+        )
+
+        db.add(new_quiz)
+
+
+
+    return {"message" : f"Topic id {topic_id} has been approved"}
