@@ -603,7 +603,6 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="topic id not found"
             )
-    print(response_questions)
     return ReviewQuestions (
         quiz_name = topic_query[0].topic_name, 
         quiz_description = "", 
@@ -666,6 +665,7 @@ async def approve_topic(
     # Commit changed 
     db.commit()
 
+    # Create 3 random ordered questions for 3 quizes.
     for i in range(3) :
         randomized_questions = question_id_list[:]
         random.shuffle(randomized_questions)
@@ -680,8 +680,15 @@ async def approve_topic(
             created_at = datetime.now(),
             is_locked = False, 
         )
+
+        # Add the new quiz, commit and insert automated fields.
         db.add(new_quiz)
         db.commit()
         db.refresh(new_quiz)
+    
+    # After completion, change the status of the topic to DONE. 
+    topic_query = db.query(Topic).where(Topic.topic_id == topic_id).limit(1).with_for_update().all()
+    topic_query[0].state = "DONE"
+    db.commit()
 
     return {"message" : f"Topic id {topic_id} has been approved"}
