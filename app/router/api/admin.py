@@ -667,7 +667,8 @@ async def approve_topic(
     db.commit()
 
     for i in range(3) :
-        randomized_questions = random.shuffle(question_id_list)
+        randomized_questions = question_id_list[:]
+        random.shuffle(randomized_questions)
         new_quiz = Quiz(
             name = approved_questions.quiz_name, 
             description = approved_questions.quiz_description if approved_questions.quiz_description != None else "", 
@@ -679,9 +680,8 @@ async def approve_topic(
             created_at = datetime.now(),
             is_locked = False, 
         )
-
         db.add(new_quiz)
-
-
+        db.commit()
+        db.refresh(new_quiz)
 
     return {"message" : f"Topic id {topic_id} has been approved"}
