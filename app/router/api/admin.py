@@ -577,7 +577,7 @@ async def get_topic_questions(topic_id : str, db: Session = Depends(get_db),  ad
         Returns:
 
     '''
-    query_result= db.query(Question).where(Question.topic_id == topic_id).order_by(Question.question_id, 'desc')
+    query_result= db.query(Question).where(Question.topic_id == topic_id).order_by(Question.question_id, text('desc'))
     questions_list = query_result.all()
 
     if  len(questions_list) == 0: 
@@ -608,7 +608,7 @@ async def approve_topic(topic_id : str, approved_questions: ApproveQuestions, ad
             _type_: _description_
 
     '''
-    query_result= db.query(Question).where(Question.topic_id == topic_id).with_for_update().order_by(Question.question_id, 'desc')
+    query_result= db.query(Question).where(Question.topic_id == topic_id).with_for_update().order_by(Question.question_id, text('desc'))
     questions_list = query_result.all()
 
     if  len(questions_list) == 0: 
