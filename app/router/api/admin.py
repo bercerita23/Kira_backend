@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import null, text
 from app.database import get_db
 from app.schema.admin_schema import *
+from app.schema.user_schema import ApproveQuestions
 from app.router.auth_util import *
 from app.model.topics import Topic 
 from app.model.questions import Question
@@ -20,6 +21,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
+from app.schema.user_schema import QuestionsOut
 
 router = APIRouter()
 s3_service = S3Service()
@@ -563,3 +565,57 @@ async def content_upload(
         "message": f"File {file.filename} has been successfully uploaded."
     }
 
+@router.get("/review-questions/{topic_id}", response_model=QuestionsOut, status_code=status.HTTP_200_OK)
+async def get_topic_questions(topic_id : str, db: Session = Depends(get_db),  admin : User = Depends(get_current_admin))-> Dict[str, Any]:
+    query_result= db.query(Question).where(Question.topic_id == topic_id).order_by(Question.question_id, 'desc')
+    questions_list = query_result.all()
+
+    if  len(questions_list) == 0: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="topic id not found"
+            )
+    
+    return QuestionsOut(questions=questions_list)
+
+@router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
+async def approve_topic(topic_id : str, approved_questions: ApproveQuestions, admin : User = Depends(get_current_admin), db: Session = Depends(get_db)):
+    '''
+        Approve topic questions based on topic. 
+        
+        args:
+            topic_id : topic Id being approved
+            approved_questions : a list of approved questions 
+            db (Session, optional): _description_. Defaults to Depends(get_db).
+            admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+    '''
+    query_result= db.query(Question).where(Question.topic_id == topic_id).with_for_update().order_by(Question.question_id, 'desc')
+    questions_list = query_result.all()
+
+    if  len(questions_list) == 0: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="topic id not found"
+            )
+    if len(questions_list) != len(approved_questions.questions):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="approved questions do not match topic ID"
+        )
+    
+    # Only update changed and changeable fields
+    for approved_question in approved_questions.questions:
+        for question in questions_list:
+            if question.question_id == approved_question.question_id:
+                if question.answer != approved_question.answer:
+                    question.answer = approved_question.answer
+                if question.content != approved_question.content:
+                    question.content = approved_question.content
+                if question.options != approved_question.options:
+                    question.options = approved_question.options
+                if question.image_url != approved_question.image_url:
+                    question.image_url = approved_question.image_url
+    # Commit changed 
+    db.commit()
+
+    return {"message" : "Topic id {topic_id} has been approved"}

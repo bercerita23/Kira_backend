@@ -63,9 +63,6 @@ class Question(BaseModel):
 class QuestionsOut(BaseModel): 
     questions: List[Question]
 
-class ReviewQuestions(BaseModel):
-    questions: List[Question]
-
 class QuizSubmission(BaseModel):
     quiz_id: int
     pass_count: int
@@ -113,3 +110,6 @@ class SingleUserAchievement(BaseModel):
 
 class UserAchievementsOut(BaseModel): 
     user_achievements: List[SingleUserAchievement]
+
+class ApproveQuestions(BaseModel):
+    questions: List[Question]
