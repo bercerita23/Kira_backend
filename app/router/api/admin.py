@@ -23,7 +23,7 @@ from app.router.aws_ses import *
 import fitz 
 from app.schema.user_schema import Question as QuestionSchema, ReviewQuestions
 from app.router.s3_signer import presign_get
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 
 router = APIRouter()
@@ -675,7 +675,8 @@ async def approve_topic(
             creator_id = user.user_id, 
             questions = randomized_questions,
             topic_id = topic_id, 
-            expired_at = None, 
+            expired_at = datetime.now() + timedelta(days=7), 
+            created_at = datetime.now(),
             is_locked = False, 
         )
 
