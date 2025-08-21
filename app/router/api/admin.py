@@ -666,12 +666,11 @@ async def approve_topic(
     db.commit()
 
     # Create 3 random ordered questions for 3 quizes.
-    topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
     for i in range(3) :
         randomized_questions = question_id_list[:]
         random.shuffle(randomized_questions)
         new_quiz = Quiz(
-            name = f"Week {topic.week_number} Quiz {i + 1} Topic: {approved_questions.quiz_name}",
+            name = f"Quiz {i + 1} - {approved_questions.quiz_name}",
             description = approved_questions.quiz_description, 
             school_id = user.school_id,
             creator_id = user.user_id, 
