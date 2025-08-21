@@ -6,7 +6,7 @@ import logging
 from app.config import settings
 
 # Constants
-SENDER = "Bercerita KIRA <dev-team@kiraclassroom.com>"
+SENDER = "KIRA Bercerita <dev-team@kiraclassroom.com>"
 CONFIGURATION_SET = "ConfigSet"
 AWS_REGION = "us-east-2"
 CHARSET = "UTF-8"
@@ -380,5 +380,31 @@ def send_ready_notification(email: str):
     return _send_email(
         email=email,
         subject="Bercerita KIRA - Quiz Ready",
+        body_html=body_html
+    )
+
+def send_quiz_published(email: str): 
+    """
+    Send quiz publisheds notification email to new admin.
+    
+    Args:
+        email: 
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    verification_link = f"{settings.FRONTEND_URL}/login"
+    
+    additional_info = f""""""
+    
+    body_html = _create_email_template_without_button(
+        title="Status Update",
+        main_content="Your quiz was published successfully to the students.",
+        verification_link=verification_link,
+        additional_info=additional_info
+    )
+    
+    return _send_email(
+        email=email,
+        subject="Bercerita KIRA - Quiz Publish",
         body_html=body_html
     )

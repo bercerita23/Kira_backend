@@ -586,7 +586,6 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
 
     response_questions: List[QuestionSchema] = []
     for question in questions_list: 
-        signed_url = presign_get(question.image_url)
         response_questions.append(QuestionSchema(
             question_id=question.question_id,
             content=question.content,
@@ -594,7 +593,6 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
             question_type=question.question_type,
             points=question.points,
             answer=question.answer,
-            image_url=signed_url
             )
         )
 
@@ -690,5 +688,6 @@ async def approve_topic(
     topic_query = db.query(Topic).where(Topic.topic_id == topic_id).limit(1).with_for_update().all()
     topic_query[0].state = "DONE"
     db.commit()
+    send_quiz_published(user.email)
 
     return {"message" : f"Topic id {topic_id} has been approved"}

@@ -58,7 +58,7 @@ class Question(BaseModel):
     question_type: str
     points: int
     answer: str
-    image_url: Optional[str] = None
+    # simage_url: Optional[str] = None
 
 class QuestionsOut(BaseModel): 
     questions: List[Question]
