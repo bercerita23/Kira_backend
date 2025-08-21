@@ -671,8 +671,8 @@ async def approve_topic(
         randomized_questions = question_id_list[:]
         random.shuffle(randomized_questions)
         new_quiz = Quiz(
-            name = f"Week {topic.week_number}, Quiz {i + 1}",
-            description = approved_questions.quiz_description if approved_questions.quiz_description != None else "", 
+            name = f"Week {topic.week_number}: {approved_questions.quiz_name}",
+            description = f"Quiz Number: {i + 1}", 
             school_id = user.school_id,
             creator_id = user.user_id, 
             questions = randomized_questions,
