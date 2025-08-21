@@ -3,11 +3,6 @@ import os
 from pydantic import EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.log import get_logger
-
-log = get_logger(__name__)
-
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file="./env.local", env_file_encoding="utf-8", case_sensitive=True
@@ -38,7 +33,7 @@ class Settings(BaseSettings):
     AWS_DEFAULT_REGION: str
     AWS_S3_BUCKET_NAME: str
 
-    GEMINI_API_KEY: str
+    GOOGLE_API_KEY: str
     OPENAI_API_KEY: str
     
     FRONTEND_URL: str
@@ -88,7 +83,7 @@ def get_settings(env: str = "dev") -> Settings:
     Raises:
         ValueError: If the environment is invalid.
     """
-    log.debug("getting settings for env: %s", env)
+
 
     # if env.lower() in ["dev", "d", "development"]:
     #     return ContainerDevSettings()

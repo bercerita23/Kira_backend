@@ -3,10 +3,9 @@ from botocore.exceptions import ClientError, NoCredentialsError
 import os
 from typing import Optional
 from app.config import settings
-import logging
 import re
+import logging as logger
 
-logger = logging.getLogger(__name__)
 
 class S3Service:
     def __init__(self):
@@ -23,7 +22,9 @@ class S3Service:
         file_content: bytes, 
         school_id: str, 
         filename: str,
-        week_number: int
+        week_number: int,
+        content_type: str = 'application/pdf',
+        folder_prefix: str = 'content'
     ) -> Optional[str]:
         """
         Upload file to S3 with organized folder structure
@@ -40,14 +41,14 @@ class S3Service:
         try:
             # Create the S3 key (path) with folder structure
             # Format: content/{school_id}/week_{week_number}/{filename}
-            s3_key = f"{school_id}/{week_number}/{filename}"
+            s3_key = f"{folder_prefix}/{school_id}/{week_number}/{filename}"
             
             # Upload the file
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
                 Key=s3_key,
                 Body=file_content,
-                ContentType='application/pdf'  # Adjust based on your file types
+                ContentType=content_type  # Use the parameter instead of hardcoded
             )
             
             # Return the S3 URL
@@ -151,7 +152,7 @@ class S3Service:
             logger.error(f"Unexpected error deleting from S3: {e}")
             return False
     
-    def get_file_content_by_url(self, s3_url: str) -> Optional[bytes]:
+    def get_file_by_url(self, s3_url: str):
         """
         Get file content from S3 into memory using the full S3 URL (no local file created)
         
@@ -174,10 +175,10 @@ class S3Service:
             )
             
             # Read the file content
-            file_content = response['Body'].read()
+            file = response['Body'].read()
             logger.info(f"Successfully retrieved file content from S3: {s3_url}")
             
-            return file_content
+            return file
             
         except ClientError as e:
             error_code = e.response['Error']['Code']

@@ -22,7 +22,7 @@ from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.router.background.badges_task import check_and_award_badges
 from app.router.background.achievement_task import check_achievement_and_award
 from app.router.background.streak_task import update_streak
-
+from app.router.s3_signer import presign_get
 
 router = APIRouter()
 
@@ -264,6 +264,7 @@ async def get_questions(quiz_id: str,
     for qid in question_ids:
         question = question_map.get(qid)
         if question:
+            signed_url = presign_get(question.image_url, expires_in=600)
             res.append(Question(
                 question_id=question.question_id,
                 content=question.content,
@@ -271,7 +272,7 @@ async def get_questions(quiz_id: str,
                 question_type=question.question_type,
                 points=question.points,
                 answer=question.answer,
-                image_url=question.image_url
+                image_url=signed_url
             ))
     return QuestionsOut(questions=res)
 
@@ -358,8 +359,16 @@ async def submit_quiz(
     #######################
     ### Background Task ###
     #######################
-    background_tasks.add_task(check_achievement_and_award, user.user_id)
-    background_tasks.add_task(check_and_award_badges, user.user_id)
+    
+    saved_uid = user.user_id
+    async def process_rewards(uid):
+        try:
+            await check_achievement_and_award(uid)
+            await check_and_award_badges(uid)
+        except Exception as e:
+            print(f"Error processing rewards for user {uid}: {e}")
+    
+    background_tasks.add_task(process_rewards, saved_uid)
     # background_tasks.add_task(update_streak, user.user_id)
 
     # 5. Prepare response using Pydantic model for serialization

@@ -3,6 +3,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from app.config import Settings, settings
 
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
 
 def build_sqlalchemy_database_url_from_settings(_settings: Settings) -> str:
@@ -56,5 +57,26 @@ def get_local_session(database_url: str, echo=False, **kwargs) -> sessionmaker:
     session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return session
 
+def get_async_session(database_url: str, echo=False) -> sessionmaker:
+    """
+    Returns an async sessionmaker for async DB operations.
+    """
+    engine = create_async_engine(
+        database_url.replace("postgresql+psycopg", "postgresql+asyncpg"),  # use async driver
+        echo=echo,
+        pool_size=3,           # reduced pool size since we have 3 background tasks
+        max_overflow=5,        # reduced max overflow
+        pool_timeout=30,
+        pool_recycle=300,     # recycle connections every 5 minutes
+        pool_pre_ping=True    # verify connection is valid before using it
+    )
+    async_session = sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False
+    )
+    return async_session
 
 SQLALCHEMY_DATABASE_URL = build_sqlalchemy_database_url_from_settings(settings)

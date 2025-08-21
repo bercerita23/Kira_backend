@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import null, text
 from app.database import get_db
 from app.schema.admin_schema import *
+from app.schema.user_schema import ApproveQuestions
 from app.router.auth_util import *
 from app.model.topics import Topic 
+from app.model.questions import Question as QuestionModel
+from app.model.quizzes import Quiz
 from app.model.users import User
 from app.model.reference_counts import *
 from app.router.dependencies import *
@@ -18,6 +21,10 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from app.router.aws_s3 import *
 from app.router.aws_ses import *
 import fitz 
+from app.schema.user_schema import Question as QuestionSchema, ReviewQuestions
+from app.router.s3_signer import presign_get
+from datetime import datetime, timedelta
+import random
 from app.router.aws_s3 import *
 
 
@@ -463,17 +470,27 @@ async def decrease_count(
         HTTPException: If topic not found or deletion fails
     """
     selected_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
+    related_questions = db.query(QuestionModel).filter(QuestionModel.topic_id == selected_topic.topic_id).all()
+    related_quizzes = db.query(Quiz).filter(Quiz.topic_id == selected_topic.topic_id).all()
+
     s3_url = selected_topic.s3_bucket_url
     referred_entry = db.query(ReferenceCount).filter(ReferenceCount.referred_s3_url == s3_url).first()
     referred_entry.count -= 1
 
+    s3_service = S3Service()
     if referred_entry.count == 0: # delete the entry and delete it in S3
-        s3_service = S3Service()
         s3_service.delete_file_by_url(referred_entry.referred_s3_url)
         # delete file on S3 
         db.delete(referred_entry)
     # delete the topic 
     db.delete(selected_topic)
+    if related_questions: 
+        for rq in related_questions: 
+            s3_service.delete_file_by_url(rq.image_url)
+            db.delete(rq)
+    if related_quizzes: 
+        for rq in related_quizzes: 
+            db.delete(rq)
     db.commit()
     return {"message": "The content has been deleted."}
     
@@ -509,7 +526,8 @@ async def content_upload(
             file_content=contents,
             school_id=school_id,
             filename=file.filename,
-            week_number=week_number
+            week_number=week_number,
+            folder_prefix='content'
         )
         
         if not s3_url:
@@ -552,3 +570,128 @@ async def content_upload(
         "message": f"File {file.filename} has been successfully uploaded."
     }
 
+@router.get("/review-questions/{topic_id}", response_model=ReviewQuestions, status_code=status.HTTP_200_OK)
+async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  admin : User = Depends(get_current_admin))-> Dict[str, Any]:
+    '''
+        get all review questions with the same topic_id
+
+        args: 
+            topic_id : topic Id being querried
+            db (Session, optional): _description_. Defaults to Depends(get_db).
+            admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+        Returns:
+
+    '''
+    query_result= db.query(QuestionModel).where(QuestionModel.topic_id == topic_id)
+    topic_query = db.query(Topic).where(Topic.topic_id == topic_id).limit(1).all()
+    questions_list = query_result.all()
+
+    response_questions: List[QuestionSchema] = []
+    for question in questions_list: 
+        signed_url = presign_get(question.image_url)
+        response_questions.append(QuestionSchema(
+            question_id=question.question_id,
+            content=question.content,
+            options=question.options,
+            question_type=question.question_type,
+            points=question.points,
+            answer=question.answer,
+            image_url=signed_url
+            )
+        )
+
+    if  len(response_questions) == 0: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="topic id not found"
+            )
+    return ReviewQuestions (
+        quiz_name = topic_query[0].topic_name, 
+        quiz_description = "", 
+        questions = response_questions
+        )
+
+
+@router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
+async def approve_topic(
+    topic_id : int, 
+    approved_questions: ApproveQuestions, 
+    user : User = Depends(get_current_admin), 
+    db: Session = Depends(get_db), 
+    ):
+    if not approved_questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="no approved questions given"
+        )
+    '''
+        Approve topic questions based on topic_id. 
+        
+        args:
+            topic_id : topic Id being approved
+            approved_questions : a list of approved questions 
+            db (Session, optional): _description_. Defaults to Depends(get_db).
+            admin (User, optional): _description_. Defaults to Depends(get_current_admin).
+            
+        Returns:
+            _type_: _description_
+
+    '''
+    query_result= db.query(QuestionModel).where(QuestionModel.topic_id == topic_id).with_for_update()
+    questions_list = query_result.all()
+
+    if  len(questions_list) == 0: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="topic id not found"
+            )
+    if len(questions_list) != len(approved_questions.questions):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="approved questions do not match topic ID"
+        )
+    
+    question_id_list = []
+    
+    # Only update changed and changeable fields
+    for approved_question in approved_questions.questions:
+        for question in questions_list:
+            if question.question_id == approved_question.question_id:
+                question_id_list.append(question.question_id)
+                if question.answer != approved_question.answer:
+                    question.answer = approved_question.answer
+                if question.content != approved_question.content:
+                    question.content = approved_question.content
+                if question.options != approved_question.options:
+                    question.options = approved_question.options
+    # Commit changed 
+    db.commit()
+
+    # Create 3 random ordered questions for 3 quizes.
+    for i in range(3) :
+        randomized_questions = question_id_list[:]
+        random.shuffle(randomized_questions)
+        new_quiz = Quiz(
+            name = f"Quiz {i + 1} - {approved_questions.quiz_name}",
+            description = approved_questions.quiz_description, 
+            school_id = user.school_id,
+            creator_id = user.user_id, 
+            questions = randomized_questions,
+            topic_id = topic_id, 
+            expired_at = datetime.now() + timedelta(days=7), 
+            created_at = datetime.now(),
+            is_locked = False, 
+        )
+
+        # Add the new quiz, commit and insert automated fields.
+        db.add(new_quiz)
+        db.commit()
+        db.refresh(new_quiz)
+    
+    # After completion, change the status of the topic to DONE. 
+    topic_query = db.query(Topic).where(Topic.topic_id == topic_id).limit(1).with_for_update().all()
+    topic_query[0].state = "DONE"
+    db.commit()
+    send_quiz_published(user.email)
+
+    return {"message" : f"Topic id {topic_id} has been approved"}
