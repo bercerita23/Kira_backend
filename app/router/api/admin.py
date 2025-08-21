@@ -666,7 +666,7 @@ async def approve_topic(
     db.commit()
 
     # Create 3 random ordered questions for 3 quizes.
-    topic = db.query(Topic).filter(Quiz.topic_id == topic_id).first()
+    topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
     for i in range(3) :
         randomized_questions = question_id_list[:]
         random.shuffle(randomized_questions)
