@@ -25,6 +25,8 @@ from app.schema.user_schema import Question as QuestionSchema, ReviewQuestions
 from app.router.s3_signer import presign_get
 from datetime import datetime, timedelta
 import random
+from app.router.aws_s3 import *
+
 
 router = APIRouter()
 s3_service = S3Service()
@@ -452,7 +454,7 @@ async def increase_count(
 async def decrease_count(
     topic_id: int = Form(...), 
     db: Session = Depends(get_db), 
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_current_admin)
 ):
     """Decrease reference count for a topic and optionally delete S3 file if no longer referenced
 
