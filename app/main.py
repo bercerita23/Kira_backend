@@ -95,25 +95,6 @@ app = FastAPI(lifespan=lifespan,
               title=settings.PROJECT_NAME, 
               version=settings.API_VERSION)
 
-# Configure app-wide maximum request size (100MB)
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-class MaxBodySizeMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        if request.method == "POST":
-            content_length = int(request.headers.get("content-length", 0))
-            MAX_SIZE = 100 * 1024 * 1024  # 100MB
-            if content_length > MAX_SIZE:
-                from starlette.responses import JSONResponse
-                return JSONResponse(
-                    status_code=413,
-                    content={"detail": "File too large. Maximum size allowed is 100MB"}
-                )
-        response = await call_next(request)
-        return response
-
-app.add_middleware(MaxBodySizeMiddleware)
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
