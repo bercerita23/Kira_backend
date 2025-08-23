@@ -470,8 +470,6 @@ async def decrease_count(
         HTTPException: If topic not found or deletion fails
     """
     selected_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
-    related_questions = db.query(QuestionModel).filter(QuestionModel.topic_id == selected_topic.topic_id).all()
-    related_quizzes = db.query(Quiz).filter(Quiz.topic_id == selected_topic.topic_id).all()
 
     s3_url = selected_topic.s3_bucket_url
     referred_entry = db.query(ReferenceCount).filter(ReferenceCount.referred_s3_url == s3_url).first()
@@ -484,13 +482,6 @@ async def decrease_count(
         db.delete(referred_entry)
     # delete the topic 
     db.delete(selected_topic)
-    if related_questions: 
-        for rq in related_questions: 
-            s3_service.delete_file_by_url(rq.image_url)
-            db.delete(rq)
-    if related_quizzes: 
-        for rq in related_quizzes: 
-            db.delete(rq)
     db.commit()
     return {"message": "The content has been deleted."}
     
@@ -611,7 +602,6 @@ async def get_topic_questions(topic_id : int, db: Session = Depends(get_db),  ad
         questions = response_questions
         )
 
-
 @router.post("/approve/{topic_id}", status_code=status.HTTP_200_OK)
 async def approve_topic(
     topic_id : int, 
@@ -695,3 +685,59 @@ async def approve_topic(
     send_quiz_published(user.email)
 
     return {"message" : f"Topic id {topic_id} has been approved"}
+
+@router.post("/replace-img/{question_id}", status_code=status.HTTP_200_OK)
+async def replace_question_image(
+    question_id: int,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """Replace the existing image for a question with a new one.
+    The new image will be uploaded to the same S3 location, effectively replacing the old one.
+    """
+    # Find the question
+    question = db.query(QuestionModel).filter(
+        QuestionModel.question_id == question_id,
+        QuestionModel.school_id == admin.school_id
+    ).first()
+    
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found or does not belong to your school"
+        )
+    
+    if not question.image_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This question does not have an existing image"
+        )
+        
+    try:
+        # Read file content
+        file_content = await file.read()
+        
+        # Extract the existing S3 key from the URL
+        s3_key = s3_service._extract_key_from_url(question.image_url)
+        if not s3_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid S3 URL format in database"
+            )
+            
+        # Upload new file with same key (this will replace the existing file)
+        s3_service.s3_client.put_object(
+            Bucket=s3_service.bucket_name,
+            Key=s3_key,
+            Body=file_content,
+            ContentType=file.content_type
+        )
+        
+        return {"message": "Image successfully replaced"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error replacing image: {str(e)}"
+        )

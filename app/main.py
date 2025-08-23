@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan, 
               title=settings.PROJECT_NAME, 
-              version=settings.API_VERSION) 
+              version=settings.API_VERSION)
 
 # Add CORS middleware
 app.add_middleware(
