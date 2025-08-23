@@ -470,8 +470,6 @@ async def decrease_count(
         HTTPException: If topic not found or deletion fails
     """
     selected_topic = db.query(Topic).filter(Topic.topic_id == topic_id).first()
-    related_questions = db.query(QuestionModel).filter(QuestionModel.topic_id == selected_topic.topic_id).all()
-    related_quizzes = db.query(Quiz).filter(Quiz.topic_id == selected_topic.topic_id).all()
 
     s3_url = selected_topic.s3_bucket_url
     referred_entry = db.query(ReferenceCount).filter(ReferenceCount.referred_s3_url == s3_url).first()
@@ -484,13 +482,6 @@ async def decrease_count(
         db.delete(referred_entry)
     # delete the topic 
     db.delete(selected_topic)
-    if related_questions: 
-        for rq in related_questions: 
-            s3_service.delete_file_by_url(rq.image_url)
-            db.delete(rq)
-    if related_quizzes: 
-        for rq in related_quizzes: 
-            db.delete(rq)
     db.commit()
     return {"message": "The content has been deleted."}
     
