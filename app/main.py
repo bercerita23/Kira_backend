@@ -102,6 +102,7 @@ app.add_middleware(
         settings.FRONTEND_URL,
         "https://www.kiraclassroom.com",
         "https://kiraclassroom.com",
+        "https://main.d3hzyon2wqrdca.amplifyapp.com",
         "http://localhost:3000",  # For local development
         "http://localhost:5173",  # For Vite development
     ],

@@ -477,8 +477,7 @@ async def decrease_count(
 
     s3_service = S3Service()
     if referred_entry.count == 0: # delete the entry and delete it in S3
-        s3_service.delete_file_by_url(referred_entry.referred_s3_url)
-        # delete file on S3 
+        s3_service.delete_file_by_url(referred_entry.referred_s3_url) 
         db.delete(referred_entry)
     # delete the topic 
     db.delete(selected_topic)
@@ -741,3 +740,23 @@ async def replace_question_image(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error replacing image: {str(e)}"
         )
+
+# @router.get("/content-url/{quiz_id}", response_model=dict, status_code=status.HTTP_200_OK)
+# async def get_question_content_url(
+#     quiz_id: int,
+#     db: Session = Depends(get_db),
+#     #admin: User = Depends(get_current_admin)
+# ):
+#     """Get the content URL for a specific question."""
+#     quiz = db.query(Quiz).filter(
+#         Quiz.quiz_id == quiz_id
+#     ).first()
+# 
+#     topic_url = db.query(Topic.s3_bucket_url).filter(Topic.topic_id == quiz.topic_id).first()
+#     if not topic_url:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Content not found"
+#         )
+# 
+#     return {"content_url": topic_url[0]}
