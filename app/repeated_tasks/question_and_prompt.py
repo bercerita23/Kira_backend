@@ -29,7 +29,17 @@ async def prompt_generation():
         
         if not rn:
             return  # No work to do, let the outer loop handle the sleep
+        
+                # Check if questions are already generated for this topic
+        questions = (await db.execute(select(Question)
+                .filter(Question.topic_id == rn.topic_id)
+                )).scalars().all()
                 
+        if questions:
+            # If questions exist, update the topic state and skip generation
+            rn.state = "PROMPTS_GENERATED"
+            await db.commit()
+            return
         # else get the pdf from S3 as bytes
         pdf_bytes = s3_service.get_file_by_url(rn.s3_bucket_url)
 
