@@ -429,7 +429,7 @@ async def start_chat(
 
     session = ChatSession(
         user_id=user.user_id,
-        topic_id=quiz.topic_id,
+        # topic_id=quiz.topic_id,
         turn_count=0,
         context_text=pdf_text
     )
