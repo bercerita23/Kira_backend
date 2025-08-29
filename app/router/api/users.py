@@ -24,7 +24,26 @@ from app.router.background.achievement_task import check_achievement_and_award
 from app.router.background.streak_task import update_streak
 from app.router.s3_signer import presign_get
 
+#chatbot
+from app.model.chats import ChatSession, ChatMessage
+from app.model.topics import Topic
+from app.router.aws_s3 import S3Service
+from openai import OpenAI
+import io
+from app.config import settings
+import fitz
+from pydantic import BaseModel
+
 router = APIRouter()
+
+# Add request schema for chat start
+class ChatStartRequest(BaseModel):
+    quiz_id: int
+
+# Add request schema for chat send
+class ChatSendRequest(BaseModel):
+    session_id: int
+    message: str
 
 
 @router.get("/badges/all", response_model=dict, status_code=status.HTTP_200_OK)
@@ -252,7 +271,7 @@ async def get_questions(quiz_id: str,
     """
     temp = db.query(quizzes.Quiz).filter(quizzes.Quiz.quiz_id == int(quiz_id)).first()
     if not temp: 
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found fuuuuuu")
     
     # Fetch all questions in one query
     question_ids = [int(qid) for qid in temp.questions]
@@ -375,3 +394,93 @@ async def submit_quiz(
     return {
         "message": "Quiz result submitted."
     }
+
+s3_service = S3Service()
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+@router.post("/chat/start")
+async def start_chat(
+    request: ChatStartRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    # Find quiz by id for the user's school
+    quiz = db.query(quizzes.Quiz).filter(
+        quizzes.Quiz.quiz_id == request.quiz_id,
+        quizzes.Quiz.school_id == user.school_id
+    ).first()
+    
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    
+    if not quiz.topic_id:
+        raise HTTPException(status_code=400, detail="Quiz has no associated topic")
+    topic = db.query(Topic).filter(Topic.topic_id == quiz.topic_id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    pdf_bytes = s3_service.get_file_by_url(topic.s3_bucket_url)
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    pdf_text = ""
+    for page in doc:
+        pdf_text += page.get_text()
+
+    pdf_text = pdf_text[:5000]
+
+    session = ChatSession(
+        user_id=user.user_id,
+        topic_id=quiz.topic_id,
+        turn_count=0,
+        context_text=pdf_text
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    return {"session_id": session.id, "topic_id": quiz.topic_id, "quiz_id": request.quiz_id}
+
+
+@router.post("/chat/send")
+async def send_message(
+    request: ChatSendRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    session = db.query(ChatSession).filter_by(id=request.session_id, user_id=user.user_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # increment turn count
+    session.turn_count += 1
+    db.commit()
+
+    # language stage logic
+    if session.turn_count <= 2:
+        lang_rule = "Respond only in Bahasa Indonesia."
+    elif session.turn_count <= 5:
+        lang_rule = "Respond 70% in Bahasa Indonesia, 30% in English (ex: Saya baik, terima kasih! How are you today?)"
+    elif session.turn_count <= 8:
+        lang_rule = "Respond 50% in Bahasa Indonesia, 50% in English (ex: Mungkin jalan-jalan ke mall, and after that nonton movie with friends)"
+    elif session.turn_count <= 12:
+        lang_rule = "Respond 30% in Bahasa Indonesia, 70% in English."
+    else:
+        lang_rule = "Respond fully in English."
+
+    #  use cached context_text from DB instead of uploading PDF
+    completion = client.chat.completions.create(
+        #decided to use 3.5 due to its speed
+        model="gpt-3.5-turbo",  
+        messages=[
+            {"role": "system", "content": f"You are a tutor. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} Keep every answer strictly under 20 words. if user response is not related to the context reply with \"Great question! Let’s focus on this week’s lesson. Want to try one from the topic?\""},
+            {"role": "user", "content": request.message}
+        ]
+    )
+
+    reply = completion.choices[0].message.content
+
+    # save conversation history
+    db.add(ChatMessage(session_id=session.id, role="user", content=request.message))
+    db.add(ChatMessage(session_id=session.id, role="assistant", content=reply))
+    db.commit()
+
+    return {"reply": reply, "turn_count": session.turn_count}
