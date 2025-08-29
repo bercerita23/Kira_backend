@@ -17,4 +17,4 @@ class Topic(Base):
 
     school = relationship("School", back_populates="topics")
     questions = relationship("Question", back_populates="topic")
-    chat_sessions = relationship("ChatSession", back_populates="topic")
+    # chat_sessions = relationship("ChatSession", back_populates="topic")
