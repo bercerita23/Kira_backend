@@ -41,22 +41,18 @@ async def check_and_award_badges(user_id: str):
             )
             user_badge_ids = {ub[0] for ub in user_badges_result.all()}
 
+            print(badge_info_dict)
             # Determine which badges to award
-            new_badges = []
             for badge_id, points_required in badge_info_dict.items():
                 if user_points >= points_required and badge_id not in user_badge_ids:
-                    new_badges.append(
-                        UserBadge(
+                    db.add(UserBadge(
                             user_id=user_id,
                             badge_id=badge_id,
                             earned_at=func.now(),
                             view_count=0
-                        )
-                    )
-
-            if new_badges:
-                db.add_all(new_badges)
-                db.commit()
+                        ))
+                    
+            await db.commit()
         except Exception as e:
             # Log the error but don't re-raise to prevent breaking the background task
             print(f"Error checking badges for user {user_id}: {e}")

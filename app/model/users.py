@@ -28,3 +28,4 @@ class User(Base):
     quizzes = relationship("Quiz", back_populates="creator", cascade="all, delete-orphan")
     attempts = relationship("Attempt", back_populates="user", cascade="all, delete-orphan")
     achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
+    chat_sessions = relationship("ChatSession", back_populates="user")
