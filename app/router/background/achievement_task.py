@@ -60,7 +60,7 @@ async def check_achievement_and_award(user_id: str):
                     )
                     points.points += 10
                     db.add(new_achievement)
-                    db.commit() 
+                    await db.commit() 
                     db.refresh(new_achievement)
                     
             ############## DONE!
@@ -86,7 +86,7 @@ async def check_achievement_and_award(user_id: str):
                     )
                     points.points += 50
                     db.add(new_achievement)
-                    db.commit() 
+                    await db.commit() 
                     db.refresh(new_achievement)
 
             ##############
@@ -114,7 +114,7 @@ async def check_achievement_and_award(user_id: str):
                         )
                         points.points += 15
                         db.add(new_achievement)
-                        db.commit() 
+                        await db.commit() 
                         db.refresh(new_achievement)
                         break
 
@@ -151,7 +151,7 @@ async def check_achievement_and_award(user_id: str):
                         )
                     points.points += 50
                     db.add(new_achievement)
-                    db.commit() 
+                    await db.commit() 
                     db.refresh(new_achievement)
 
 
@@ -182,7 +182,7 @@ async def check_achievement_and_award(user_id: str):
                         )
                     points.points += 50
                     db.add(new_achievement)
-                    db.commit() 
+                    await db.commit() 
                     db.refresh(new_achievement)
 
             ##############
@@ -212,7 +212,7 @@ async def check_achievement_and_award(user_id: str):
                         )
                         points.points += 20
                         db.add(new_achievement)
-                        db.commit() 
+                        await db.commit() 
                         db.refresh(new_achievement)
                         break
                     if atm.fail_count == 0: 
@@ -242,7 +242,7 @@ async def check_achievement_and_award(user_id: str):
                             )
                         points.points += 5
                         db.add(new_achievement)
-                        db.commit() 
+                        await db.commit() 
                         db.refresh(new_achievement)
                         break
 
