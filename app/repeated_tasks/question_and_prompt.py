@@ -35,7 +35,7 @@ async def prompt_generation():
                 .filter(Question.topic_id == rn.topic_id)
                 )).scalars().all()
                 
-        if questions:
+        if len(questions) == 5:
             # If questions exist, update the topic state and skip generation
             rn.state = "PROMPTS_GENERATED"
             await db.commit()
