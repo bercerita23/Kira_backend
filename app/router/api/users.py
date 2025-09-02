@@ -483,3 +483,95 @@ async def send_message(
     db.commit()
 
     return {"reply": reply, "turn_count": session.turn_count}
+
+
+class ChatEndRequest(BaseModel):
+    session_id: int
+
+@router.post("/chat/end")
+async def end_chat(
+    request: ChatEndRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    # 1. Find the session
+    session = db.query(ChatSession).filter_by(id=request.session_id, user_id=user.user_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. If already ended, return info
+    if session.ended_at:
+        return {
+            "session_id": session.id,
+            "user_id": session.user_id,
+            "created_at": session.created_at,
+            "ended_at": session.ended_at,
+            "duration_minutes": session.duration_minutes()
+        }
+
+    # 3. Mark as ended
+    session.ended_at = datetime.now()
+    db.commit()
+    db.refresh(session)
+
+    # 4. Return session info
+    return {
+        "session_id": session.id,
+        "user_id": session.user_id,
+        "created_at": session.created_at,
+        "ended_at": session.ended_at,
+        "duration_minutes": session.duration_minutes()
+    }
+
+from datetime import datetime, timedelta
+
+
+@router.get("/chat/eligibility")
+async def chat_eligibility(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    # 1. Count distinct quizzes attempted
+    quiz_count = (
+        db.query(func.count(func.distinct(Attempt.quiz_id)))
+        .filter(Attempt.user_id == user.user_id)
+        .scalar()
+    )
+
+    # If less than 5 → locked, show how many quizzes left
+    if quiz_count < 5:
+        return {
+            "chat_unlocked": False,
+            "quizzes_needed": 5 - quiz_count
+        }
+
+    # 2. Calculate weekly chat usage
+    # start of week = Monday
+    today = datetime.now()
+    start_of_week = today - timedelta(days=today.weekday())
+
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.user_id == user.user_id,
+                ChatSession.created_at >= start_of_week)
+        .all()
+    )
+
+    total_minutes = 0
+    for s in sessions:
+        end_time = s.ended_at or datetime.now()
+        total_minutes += int((end_time - s.created_at).total_seconds() // 60)
+
+    # 3. Enforce weekly cap
+    if total_minutes >= 60:
+        return {
+            "chat_unlocked": False,
+            "minutes_used": 60,
+            "minutes_remaining": 0
+        }
+
+    return {
+        "chat_unlocked": True,
+        "minutes_used": total_minutes,
+        "minutes_remaining": 60 - total_minutes
+    }
