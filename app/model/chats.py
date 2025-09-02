@@ -12,10 +12,16 @@ class ChatSession(Base):
     turn_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     context_text = Column(Text, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
 
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
     user = relationship("User", back_populates="chat_sessions")
     # topic = relationship("Topic", back_populates="chat_sessions")
+    
+    def duration_minutes(self):
+        """for calculating duration in minutes"""
+        end_time = self.ended_at or datetime.now()
+        return (end_time - self.created_at).total_seconds() // 60
 
 
 class ChatMessage(Base):
