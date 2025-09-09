@@ -4,10 +4,12 @@ from datetime import datetime
 
 class UserOut(BaseModel):
     id: int
-    email: str
+    email: Optional[str]
     first_name: str
     last_name: Optional[str]
-    school_id: Optional[int]
+    school_id: Optional[str]
+    school_name: Optional[str]
+    grade: Optional[str]
 
 class UserListResponse(BaseModel):
     Hello_From: List[UserOut]
