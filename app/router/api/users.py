@@ -15,13 +15,15 @@ from app.model import questions
 from app.model.attempts import *
 from app.model.user_achievements import *
 from app.model.achievements import *
-from sqlalchemy import func, asc
+from app.model.schools import School
+from sqlalchemy import func, asc, desc
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.router.background.badges_task import check_and_award_badges
 from app.router.background.achievement_task import check_achievement_and_award
 from app.router.s3_signer import presign_get
+from datetime import datetime, timedelta
 
 #chatbot
 from app.model.chats import ChatSession, ChatMessage
@@ -550,7 +552,6 @@ async def end_chat(
         "duration_minutes": session.duration_minutes()
     }
 
-from datetime import datetime, timedelta
 
 
 @router.get("/chat/eligibility")
@@ -566,39 +567,101 @@ async def chat_eligibility(
     )
 
     # If less than 5 → locked, show how many quizzes left
-    if quiz_count < 5:
+    # Logic changed to allow students to take talk to Kira GPT without 5 distinct quizzes. 
+    '''if quiz_count < 5:
         return {
             "chat_unlocked": False,
             "quizzes_needed": 5 - quiz_count
         }
-
     # 2. Calculate weekly chat usage
-    # start of week = Monday
+    # start of week = Monday'''
     today = datetime.now()
     start_of_week = today - timedelta(days=today.weekday())
 
+    # Find previous sessions. 
     sessions = (
         db.query(ChatSession)
         .filter(ChatSession.user_id == user.user_id,
-                ChatSession.created_at >= start_of_week)
-        .all()
+                ChatSession.created_at >= start_of_week).order_by(desc(ChatSession.ended_at)).all()
     )
+
+    last_session = sessions[0]
+    recent_attempts = db.query(Attempt).filter(Attempt.start_at > last_session.ended_at).order_by(desc(Attempt.end_at)).all()
 
     total_minutes = 0
     for s in sessions:
         end_time = s.ended_at or datetime.now()
         total_minutes += int((end_time - s.created_at).total_seconds() // 60)
 
+    if len(recent_attempts < 1) :
+        return {
+            "chat_unlocked": False,
+            "minutes_remaining": 60
+        }
+    else: 
+        return {
+            "chat_unlocked": True,
+            "recent_quiz": recent_attempts[0].quiz_id,
+            "minutes_used": total_minutes,
+            "minutes_remaining": 60
+        }
+
     # 3. Enforce weekly cap
-    if total_minutes >= 60:
+    '''if total_minutes >= 60:
         return {
             "chat_unlocked": False,
             "minutes_used": 60,
             "minutes_remaining": 0
-        }
+        }'''
 
     return {
         "chat_unlocked": True,
         "minutes_used": total_minutes,
         "minutes_remaining": 60 - total_minutes
     }
+
+@router.get("/attempts/all", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut) 
+async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    attempts = db.query(Attempt).options(joinedload(Attempt.quiz)).filter(Attempt.user_id == user.user_id).all()
+    quiz_attempts = {} # ket= quiz_id, value= list of attempt object
+
+    for attempt in attempts:
+        qid = int(attempt.quiz_id)
+        if qid not in quiz_attempts:
+            quiz_attempts[qid] = []
+        quiz_attempts[qid].append(attempt)
+
+    all_attempts = []
+    for qid, attempt_list in quiz_attempts.items():
+        for attempt in attempt_list:
+            quiz_name = attempt.quiz.name if attempt.quiz else ""
+            duration_in_sec = int((attempt.end_at - attempt.start_at).total_seconds())
+            all_attempts.append(BestAttemptOut(
+                quiz_id=qid,
+                pass_count=attempt.pass_count or 0,
+                fail_count=attempt.fail_count or 0,
+                attempt_count=len(attempt_list),
+                quiz_name=quiz_name,
+                duration_in_sec=duration_in_sec,
+                completed_at=attempt.end_at
+            ))
+    return BestAttemptsOut(attempts=all_attempts)
+
+@router.get("/details", status_code=status.HTTP_200_OK, response_model=UserOut)
+async def get_user_details(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    userRes = db.query(User).filter(User.user_id == user.user_id).all()
+    if not userRes :
+        raise HTTPException(status_code=404, detail="User not found")
+    this_user = userRes[0]
+
+    this_school = db.query(School).filter(School.school_id == this_user.school_id).first()
+
+    return UserOut(
+        id=this_user.user_id, 
+        email=this_user.email,
+        first_name=this_user.first_name,
+        last_name=this_user.last_name,
+        school_id=this_user.school_id,
+        school_name=this_school.name,
+        grade=this_user.grade,
+    )

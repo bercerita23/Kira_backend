@@ -9,6 +9,7 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(String(12), ForeignKey("users.user_id"))
     # topic_id = Column(Integer, ForeignKey("topics.topic_id", ondelete="SET NULL"))
+    # quiz_id = Column(Integer, ForeignKey("quiz.quiz_id"))
     turn_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     context_text = Column(Text, nullable=True)
