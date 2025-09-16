@@ -7,6 +7,7 @@ class StudentCreate(BaseModel):
     first_name: str
     last_name: str
     username: str
+    grade: str
 
 class StudentUpdate(BaseModel):
     username: str
