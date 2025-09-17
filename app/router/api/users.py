@@ -532,22 +532,6 @@ async def chat_eligibility(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    # 1. Count distinct quizzes attempted
-    quiz_count = (
-        db.query(func.count(func.distinct(Attempt.quiz_id)))
-        .filter(Attempt.user_id == user.user_id)
-        .scalar()
-    )
-
-    # If less than 5 → locked, show how many quizzes left
-    # Logic changed to allow students to take talk to Kira GPT without 5 distinct quizzes. 
-    '''if quiz_count < 5:
-        return {
-            "chat_unlocked": False,
-            "quizzes_needed": 5 - quiz_count
-        }
-    # 2. Calculate weekly chat usage
-    # start of week = Monday'''
     today = datetime.now()
     start_of_week = today - timedelta(days=today.weekday())
 
@@ -566,10 +550,10 @@ async def chat_eligibility(
         end_time = s.ended_at or datetime.now()
         total_minutes += int((end_time - s.created_at).total_seconds() // 60)
 
-    if len(recent_attempts < 1) :
+    if len(recent_attempts) < 1:
         return {
             "chat_unlocked": False,
-            "minutes_remaining": 60
+            "minutes_remaining": 0
         }
     else: 
         return {
@@ -577,21 +561,7 @@ async def chat_eligibility(
             "recent_quiz": recent_attempts[0].quiz_id,
             "minutes_used": total_minutes,
             "minutes_remaining": 60
-        }
-
-    # 3. Enforce weekly cap
-    '''if total_minutes >= 60:
-        return {
-            "chat_unlocked": False,
-            "minutes_used": 60,
-            "minutes_remaining": 0
-        }'''
-
-    return {
-        "chat_unlocked": True,
-        "minutes_used": total_minutes,
-        "minutes_remaining": 60 - total_minutes
-    }
+        } 
 
 @router.get("/attempts/all", status_code=status.HTTP_200_OK, response_model=BestAttemptsOut) 
 async def get_attempts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
