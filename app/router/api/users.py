@@ -566,17 +566,17 @@ async def chat_eligibility(
         end_time = s.ended_at or datetime.now()
         total_minutes += int((end_time - s.created_at).total_seconds() // 60)
 
-    if len(recent_attempts < 1) :
+    if len(recent_attempts) < 1:
         return {
             "chat_unlocked": False,
-            "minutes_remaining": 60
+            "minutes_remaining": 0
         }
     else: 
         return {
             "chat_unlocked": True,
             "recent_quiz": recent_attempts[0].quiz_id,
             "minutes_used": total_minutes,
-            "minutes_remaining": 60
+            "minutes_remaining": 60 - total_minutes
         }
 
     # 3. Enforce weekly cap
