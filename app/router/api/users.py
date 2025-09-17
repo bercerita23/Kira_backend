@@ -570,7 +570,12 @@ async def chat_eligibility(
     )
 
     last_session = sessions[0]
-    recent_attempts = db.query(Attempt).filter(Attempt.start_at > last_session.ended_at).order_by(desc(Attempt.end_at)).all()
+    query = db.query(Attempt).order_by(desc(Attempt.end_at))
+
+    if last_session and last_session.ended_at is not None:
+        query = query.filter(Attempt.start_at >= last_session.ended_at)
+
+    recent_attempts = query.all()
 
     total_minutes = 0
     for s in sessions:
