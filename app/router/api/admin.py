@@ -163,7 +163,8 @@ async def create_student(student: StudentCreate,
         hashed_password=get_password_hash(student.password),
         first_name=student.first_name,
         last_name=student.last_name,
-        school_id=admin.school_id
+        school_id=admin.school_id, 
+        grade= student.grade
     )
     
     # Create Points record for the new student

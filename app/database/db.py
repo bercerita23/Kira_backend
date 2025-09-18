@@ -1,8 +1,10 @@
 from typing import Generator, AsyncGenerator
 from contextlib import contextmanager
 from app.database.session import SQLALCHEMY_DATABASE_URL, get_local_session, get_async_session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
+from sqlalchemy import create_engine
 # from app.exceptions import SQLAlchemyException
 
 from app.log import get_logger
@@ -10,6 +12,22 @@ from app.log import get_logger
 log = get_logger(__name__)
 
 
+ENGINE = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=5,          # max number of persistent connections in the pool
+    max_overflow=0,       # 0 means never open more than pool_size
+    pool_timeout=30,      # seconds to wait for a connection before raising
+    pool_recycle=1800,    # recycle connections periodically (helps stale conns)
+    pool_pre_ping=True,   # validates connections before using
+    future=True,
+)
+SessionLocal = sessionmaker(
+    bind=ENGINE,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    future=True,
+)
 def get_db() -> Generator:  # pragma: no cover
     """
     Returns a generator that yields a database session
@@ -21,11 +39,11 @@ def get_db() -> Generator:  # pragma: no cover
         Exception: If an error occurs while getting the database session.
     """
 
-    db = get_local_session(SQLALCHEMY_DATABASE_URL, False)()
+    db = SessionLocal()
     try:
         yield db
-    finally:  # pragma: no cover
-        db.close()  # pragma: no cover
+    finally:
+        db.close()
 
 @asynccontextmanager
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
