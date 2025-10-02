@@ -1,0 +1,47 @@
+### Quiz Stats ### // teacher selects what quiz they want, displays Completion, average, median, min/max
+
+# returns all the quizzes
+SELECT DISTINCT name, created_at, quiz_id
+FROM quizzes
+WHERE school_id = {school_id}
+ORDER BY created_at DESC;
+
+^^ name, created_at, quiz_id
+
+# for each quiz in ^, return number of students who completed the quiz
+SELECT COUNT(DISTINCT user_id) AS total_completions
+FROM attempts
+WHERE quiz_id = {quiz_id};
+
+# for returning mean, max, and median, take total of attempts? or first?
+------
+
+
+# average attempt time per day spend with kira and also 
+
+SELECT CAST(start_at AS DATE) AS just_date, AVG(end_at - start_at) as total_avg_time
+FROM attempts 
+GROUP BY just_date
+
+
+SELECT CAST(created_at AS DATE) AS just_date, AVG(ended_at - created_at) as total_avg_time
+FROM chat_sessions
+WHERE ended_at is NOT NULL AND created_at is NOT NULL
+GROUP BY just_date
+
+vvvvvvvvv
+
+SELECT just_date, AVG(duration_minutes) AS total_avg_minutes
+FROM (
+    SELECT CAST(start_at AS DATE) AS just_date,
+           EXTRACT(EPOCH FROM (end_at - start_at)) / 60.0 AS duration_minutes
+    FROM attempts
+    WHERE end_at IS NOT NULL AND start_at IS NOT NULL
+    UNION ALL
+    SELECT CAST(created_at AS DATE) AS just_date,
+           EXTRACT(EPOCH FROM (ended_at - created_at)) / 60.0 AS duration_minutes
+    FROM chat_sessions
+    WHERE ended_at IS NOT NULL AND created_at IS NOT NULL
+) combined
+GROUP BY just_date
+ORDER BY just_date DESC;
