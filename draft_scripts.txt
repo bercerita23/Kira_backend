@@ -1,10 +1,7 @@
 ### Quiz Stats ### // teacher selects what quiz they want, displays Completion, average, median, min/max
 
 # returns all the quizzes
-SELECT DISTINCT name, created_at, quiz_id
-FROM quizzes
-WHERE school_id = {school_id}
-ORDER BY created_at DESC;
+ 
 
 ^^ name, created_at, quiz_id
 
@@ -13,11 +10,62 @@ SELECT COUNT(DISTINCT user_id) AS total_completions
 FROM attempts
 WHERE quiz_id = {quiz_id};
 
-# for returning mean, max, and median, take total of attempts? or first?
+# gives you the latest attempt for each quiz
+
+SELECT *
+FROM (
+    SELECT a.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY quiz_id, user_id
+               ORDER BY attempt_number DESC
+           ) AS rn
+    FROM public.attempts a
+) ranked
+WHERE rn = 1;
+
+# get avg, min, max, stddev
+
+WITH latest AS (
+    SELECT a.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY quiz_id, user_id
+               ORDER BY attempt_number DESC
+           ) AS rn
+    FROM attempts a
+)
+
+SELECT 
+    quiz_id,
+    AVG(pass_count::float / NULLIF(pass_count + fail_count, 0))   AS mean_score,
+    MIN(pass_count::float / NULLIF(pass_count + fail_count, 0))   AS min_score,
+    MAX(pass_count::float / NULLIF(pass_count + fail_count, 0))   AS max_score,
+    STDDEV(pass_count::float / NULLIF(pass_count + fail_count, 0)) AS stddev_score
+FROM latest
+WHERE rn = 1
+GROUP BY quiz_id;
+
+# average quiz score (latest attempt only) for each user
+
+WITH latest AS (
+    SELECT a.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY quiz_id, user_id
+               ORDER BY attempt_number DESC
+           ) AS rn
+    FROM attempts a
+)
+SELECT AVG(pass_count::float / NULLIF(pass_count + fail_count, 0)) AS mean_score, u.user_id, u.first_name
+FROM latest l
+INNER JOIN users u ON l.user_id = u.user_id 
+WHERE rn = 1
+GROUP BY u.user_id, u.first_name
+ORDER BY mean_score DESC
+
+
 ------
 
 
-# average attempt time per day spend with kira and also 
+# average attempt time per day spend with kira and also in quizes
 
 SELECT CAST(start_at AS DATE) AS just_date, AVG(end_at - start_at) as total_avg_time
 FROM attempts 
@@ -45,3 +93,5 @@ FROM (
 ) combined
 GROUP BY just_date
 ORDER BY just_date DESC;
+
+-----------------
