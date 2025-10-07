@@ -203,7 +203,58 @@ async def get_schools_with_admins(
     return {"schools": result}
 
 @router.post('/addschool', status_code=status.HTTP_201_CREATED)
-async def create_new_school(new_school : NewSchool, db: Session = Depends(get_db), user:User = Depends(get_current_super_admin)):
+async def create_new_school(
+    new_school: NewSchool,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_super_admin)
+):
+    # basic validation (Pydantic can also enforce these)
+    if not new_school.email:
+        raise HTTPException(400, detail="Email was not provided")
+    if not new_school.name:
+        raise HTTPException(400, detail="name was not provided")
+    if not new_school.telephone:
+        raise HTTPException(400, detail="Phone number was not provided")
+    if not new_school.address:
+        raise HTTPException(400, detail="Address was not provided")
+
+    # unique name check (more efficient than pulling all rows)
+    exists_by_name = db.query(School).filter_by(name=new_school.name).first()
+    if exists_by_name:
+        raise HTTPException(422, detail="School with that name already exists")
+
+    # generate unique 8-digit school_id
+    while True:
+        candidate = str(random.randint(10**7, 10**8 - 1))
+        exists_by_id = db.query(School).filter_by(school_id=candidate).first()  # <-- fixed
+        if not exists_by_id:
+            break
+
+    school = School(
+        email=new_school.email,
+        name=new_school.name,
+        address=new_school.address,
+        telephone=new_school.telephone,
+        school_id=candidate,
+        status=SchoolStatus.active,
+    )
+
+    db.add(school)
+    db.commit()
+    db.refresh(school)
+
+    return {
+        "message": "school created",
+        "school": {
+            "school_id": school.school_id,
+            "name": school.name,
+            "email": school.email,
+            "telephone": school.telephone,
+            "address": school.address,
+            "status": school.status.value,
+        },
+    }
+
     if not new_school.email: 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
