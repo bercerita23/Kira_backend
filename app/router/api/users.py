@@ -419,6 +419,21 @@ async def start_chat(
     topic = db.query(Topic).filter(Topic.topic_id == quiz.topic_id).first()
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
+    
+       
+    five_seconds_ago = datetime.now() - timedelta(seconds=5)
+
+    recent_session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.user_id == user.user_id,
+            ChatSession.created_at >= five_seconds_ago
+        )
+        .first()
+    )
+
+    if recent_session:
+        raise HTTPException(status_code=400, detail="Session already created too recently")
 
     pdf_bytes = s3_service.get_file_by_url(topic.s3_bucket_url)
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")

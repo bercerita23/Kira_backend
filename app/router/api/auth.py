@@ -14,6 +14,7 @@ from app.router.dependencies import *
 from app.router.aws_ses import *
 from app.model.schools import School
 from uuid import uuid4
+from app.model.schools import SchoolStatus
 
 
 router = APIRouter()
@@ -320,9 +321,10 @@ async def reset_admin_password(request: PasswordResetWithEmail, db: Session = De
 
 @router.get("/school", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_all_school(db: Session = Depends(get_db)):
-    temp = db.query(School).all()
+    temp = db.query(School).filter(School.status == SchoolStatus.active).all()
     res = [{
         "school_id": school.school_id,
         "name": school.name,
+        "status": school.status.value,
     } for school in temp]
     return {"schools": res}
