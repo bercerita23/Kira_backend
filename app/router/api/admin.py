@@ -8,12 +8,15 @@ from app.router.auth_util import *
 from app.model.topics import Topic 
 from app.model.questions import Question as QuestionModel
 from app.model.quizzes import Quiz
+from app.model.chats import ChatSession
+from app.model.attempts import Attempt
 from app.model.users import User
 from app.model.reference_counts import *
 from app.router.dependencies import *
 from typing import List, Annotated
 from datetime import datetime
 from app.model.points import Points
+from sqlalchemy import func, cast, Date, union_all, select
 import hashlib
 import boto3
 from typing import Optional
@@ -761,3 +764,38 @@ async def replace_question_image(
 #         )
 # 
 #     return {"content_url": topic_url[0]}
+
+# total time spent on quizzes and chat sessions per day for the admin's school
+@router.post("/quizzes", status_code=status.HTTP_200_OK)
+async def get_total_time(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)):
+    """Get time spent in quizzes/chat sessions for the admin's school."""
+
+    attempts_subq = (
+    select(
+        cast(Attempt.start_at, Date).label("just_date"),
+        (func.extract("epoch", Attempt.end_at - Attempt.start_at)).label("duration_seconds")
+    )
+    .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
+    .where(
+        Quiz.school_id == admin.school_id,  
+        Attempt.start_at.isnot(None),
+        Attempt.end_at.isnot(None)
+    ))
+
+    chats_subq = (
+        select(
+            cast(ChatSession.created_at, Date).label("just_date"),
+            (func.extract("epoch", ChatSession.ended_at - ChatSession.created_at)).label("duration_seconds")
+        ).join(User, User.user_id == ChatSession.user_id)
+        .where(User.school_id == admin.school_id, ChatSession.created_at.isnot(None), ChatSession.ended_at.isnot(None))
+    )
+
+    combined = union_all(attempts_subq, chats_subq)
+
+    query = select(
+        func.sum(combined.selected_columns.duration_seconds).label("total_avg_seconds")
+    )
+
+    results = db.execute(query).scalar()
