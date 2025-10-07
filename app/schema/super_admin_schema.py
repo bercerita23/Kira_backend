@@ -43,3 +43,10 @@ class NewSchool(BaseModel):
     email: str
     address: str
     telephone: str
+
+class UpdateSchool(BaseModel):
+    name: str 
+    email: str
+    address: str
+    telephone: str
+    school_id: str

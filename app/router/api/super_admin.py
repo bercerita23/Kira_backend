@@ -15,7 +15,7 @@ from app.model.schools import School
 from app.model.topics import Topic
 from app.router.dependencies import *
 from datetime import datetime
-from app.schema.super_admin_schema import NewSchool
+from app.schema.super_admin_schema import NewSchool, UpdateSchool
 from app.model.schools import SchoolStatus
 
 router = APIRouter()
@@ -307,9 +307,47 @@ def suspend_school(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="School already suspended")
 
-    # Set enum member (not a raw string)
     school.status = SchoolStatus.SUSPENDED
     db.commit()
     db.refresh(school)
 
     return {"message": "School status updated", "school_id": school.school_id, "status": school.status.value}
+
+@router.post('/updateschool', status_code=status.HTTP_200_OK)
+def update_school(
+    updated_school: UpdateSchool,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_super_admin)):
+
+    school = db.get(School,  updated_school.school_id)
+    
+    if not school: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="School with that id was not found"
+            )
+    if school.email is not updated_school.email: 
+        school.email = updated_school.email
+    if school.address is not updated_school.address: 
+        school.address = updated_school.address
+    if school.telephone is not updated_school.telephone: 
+        school.telephone = updated_school.telephone 
+    if school.name is not updated_school.name: 
+        school.name = updated_school.name 
+    db.commit()
+    return {
+        "message": "School is updated"
+    }
+
+@router.get("/schools", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_school(db: Session = Depends(get_db)):
+    temp = db.query(School).filter(School.status == SchoolStatus.active).all()
+    res = [{
+        "school_id": school.school_id,
+        "name": school.name,
+        "status": school.status.value,
+        "email" : school.email, 
+        "telephone" : school.telephone, 
+        "address" : school.address
+    } for school in temp]
+    return {"schools": res}
