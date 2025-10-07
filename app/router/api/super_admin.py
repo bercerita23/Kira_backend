@@ -158,7 +158,7 @@ async def reactivate_admin(request: AdminActivation,
 @router.get("/")
 def get_all_users(db: Session = Depends(get_db), 
                   super_admin: User = Depends(get_current_super_admin)):
-    users = db.query(User).all()
+    users = db.query(User).filter(User.deactivated.is_(False)).all()
     return { "Hello_Form:" : users }
 
 @router.get("/schools_with_admins", response_model=SchoolsResponse, status_code=status.HTTP_200_OK)
