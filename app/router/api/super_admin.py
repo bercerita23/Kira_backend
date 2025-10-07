@@ -255,53 +255,6 @@ async def create_new_school(
         },
     }
 
-    if not new_school.email: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email was not provided",
-        )
-    if not new_school.name: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="name was not provided",
-        )
-    if not new_school.telephone: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phone number was not provided",
-        )
-    if not new_school.address: 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Address was not provided",
-        )
-    schools = db.query(School).all()
-
-    for school in schools: 
-        if(school.name == new_school.name):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="School with that name already exists",
-            )
-    
-    creating = True
-    while creating: 
-        candidate = str(random.randint(10**7, 10**8 - 1))  
-        if not db.query(School).filter_by(School.school_id ==candidate).first():
-            creating = False
-
-    add_school = School(
-        email = new_school.email,
-        name = new_school.name,
-        address = new_school.address, 
-        telephone = new_school.telephone, 
-        school_id = candidate,
-        status = SchoolStatus.active 
-    )
-
-
-    db.add(add_school)
-    db.commit()
 @router.post('/removeschool/{school_id}', status_code=status.HTTP_202_ACCEPTED)
 async def delete_school(school_id: str, db:Session = Depends(get_db), user: User = Depends(get_current_super_admin)):
     school = db.get(School, school_id)
