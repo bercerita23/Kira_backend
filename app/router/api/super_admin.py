@@ -303,11 +303,11 @@ def suspend_school(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="School not found")
 
-    if school.status == SchoolStatus.SUSPENDED:
+    if school.status == SchoolStatus.suspended:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="School already suspended")
 
-    school.status = SchoolStatus.SUSPENDED
+    school.status = SchoolStatus.suspended
     db.commit()
     db.refresh(school)
 
