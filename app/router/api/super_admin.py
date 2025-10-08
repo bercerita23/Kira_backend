@@ -12,8 +12,11 @@ from app.router.aws_ses import *
 from app.router.auth_util import *
 from uuid import uuid4
 from app.model.schools import School
+from app.model.topics import Topic
 from app.router.dependencies import *
 from datetime import datetime
+from app.schema.super_admin_schema import NewSchool, UpdateSchool
+from app.model.schools import SchoolStatus
 
 router = APIRouter()
 
@@ -155,7 +158,7 @@ async def reactivate_admin(request: AdminActivation,
 @router.get("/")
 def get_all_users(db: Session = Depends(get_db), 
                   super_admin: User = Depends(get_current_super_admin)):
-    users = db.query(User).all()
+    users = db.query(User).filter(User.deactivated.is_(False)).all()
     return { "Hello_Form:" : users }
 
 @router.get("/schools_with_admins", response_model=SchoolsResponse, status_code=status.HTTP_200_OK)
@@ -172,13 +175,13 @@ async def get_schools_with_admins(
     Returns:
         _type_: _description_
     """
-    schools = db.query(School).all()
+    schools = db.query(School).filter_by(School.status == SchoolStatus.active).all()
     result = []
 
     for school in schools:
         admins = db.query(User).filter(
             User.school_id == school.school_id,
-            User.is_admin == True
+            User.is_admin == True,
         ).all()
 
         students_count = db.query(User).filter(
@@ -198,3 +201,157 @@ async def get_schools_with_admins(
         result.append(school_data)
 
     return {"schools": result}
+
+@router.post('/addschool', status_code=status.HTTP_201_CREATED)
+async def create_new_school(
+    new_school: NewSchool,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_super_admin)
+):
+    # basic validation (Pydantic can also enforce these)
+    if not new_school.email:
+        raise HTTPException(400, detail="Email was not provided")
+    if not new_school.name:
+        raise HTTPException(400, detail="name was not provided")
+    if not new_school.telephone:
+        raise HTTPException(400, detail="Phone number was not provided")
+    if not new_school.address:
+        raise HTTPException(400, detail="Address was not provided")
+
+    # unique name check (more efficient than pulling all rows)
+    exists_by_name = db.query(School).filter_by(name=new_school.name).first()
+    if exists_by_name:
+        raise HTTPException(422, detail="School with that name already exists")
+
+    # generate unique 8-digit school_id
+    while True:
+        candidate = str(random.randint(10**7, 10**8 - 1))
+        exists_by_id = db.query(School).filter_by(school_id=candidate).first()  # <-- fixed
+        if not exists_by_id:
+            break
+
+    school = School(
+        email=new_school.email,
+        name=new_school.name,
+        address=new_school.address,
+        telephone=new_school.telephone,
+        school_id=candidate,
+        status=SchoolStatus.active,
+    )
+
+    db.add(school)
+    db.commit()
+    db.refresh(school)
+
+    return {
+        "message": "school created",
+        "school": {
+            "school_id": school.school_id,
+            "name": school.name,
+            "email": school.email,
+            "telephone": school.telephone,
+            "address": school.address,
+            "status": school.status.value,
+        },
+    }
+
+@router.post('/removeschool/{school_id}', status_code=status.HTTP_202_ACCEPTED)
+async def delete_school(school_id: str, db:Session = Depends(get_db), user: User = Depends(get_current_super_admin)):
+    school = db.get(School, school_id)
+    if not school or school.status != SchoolStatus.active :
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            details="School with that id is not found."
+            )
+    school.status = SchoolStatus.inactive
+    db.commit()
+    return {
+        "message": "school status updated"
+    }
+
+@router.get('/inactiveschools')
+async def get_inactive_schools(db: Session = Depends(get_db), user: User = Depends(get_current_super_admin)):
+    schools = db.query(School).filter(School.status == SchoolStatus.inactive).all()
+    if not schools:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="there is no schools that are inactive"
+            )
+    return {
+        "schools": schools
+    }
+
+@router.post("/activateschool/{school_id}", status_code=status.HTTP_202_ACCEPTED)
+async def activate_school(school_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_super_admin)):
+    school = db.get(School, school_id)
+    if not school or school.status != SchoolStatus.inactive:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="School with that id is not found"
+        )
+    if(school.status == SchoolStatus.inactive):
+        school.status = SchoolStatus.active
+    db.commit()
+    return {
+        "message": "school status updated", 
+    }
+
+@router.post("/deleteschool/{school_id}")
+def suspend_school(
+    school_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_super_admin),
+):
+    school = db.get(School, school_id)
+    if not school:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="School not found")
+
+    if school.status == SchoolStatus.suspended:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="School already suspended")
+
+    school.status = SchoolStatus.suspended
+    db.commit()
+    db.refresh(school)
+
+    return {"message": "School status updated", "school_id": school.school_id, "status": school.status.value}
+
+@router.post('/updateschool', status_code=status.HTTP_200_OK)
+def update_school(
+    updated_school: UpdateSchool,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_super_admin)):
+
+    school = db.get(School,  updated_school.school_id)
+    
+    if not school: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="School with that id was not found"
+            )
+    if school.email is not updated_school.email: 
+        school.email = updated_school.email
+    if school.address is not updated_school.address: 
+        school.address = updated_school.address
+    if school.telephone is not updated_school.telephone: 
+        school.telephone = updated_school.telephone 
+    if school.name is not updated_school.name: 
+        school.name = updated_school.name 
+    db.commit()
+    return {
+        "message": "School is updated"
+    }
+
+@router.get("/schools", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_all_school(db: Session = Depends(get_db)):
+    temp = db.query(School).filter(School.status == SchoolStatus.active).all()
+    res = [{
+        "school_id": school.school_id,
+        "name": school.name,
+        "status": school.status.value,
+        "email" : school.email, 
+        "telephone" : school.telephone, 
+        "address" : school.address
+    } for school in temp]
+    return {"schools": res}

@@ -557,8 +557,8 @@ async def content_upload(
     db.refresh(new_topic)
     db.refresh(new_reference_count)
 
-    admin_eamil = admin.email
-    send_upload_notification(admin_eamil, file.filename)
+    admin_email = admin.email
+    send_upload_notification(admin_email, file.filename)
 
     return {
         "message": f"File {file.filename} has been successfully uploaded."
