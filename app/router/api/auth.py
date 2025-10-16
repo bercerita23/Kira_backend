@@ -56,6 +56,10 @@ async def login_student(request: LoginRequestStudent,
             detail="Invalid credentials."
         )
     
+    # Determine user role
+    role = "admin" if (user.is_admin) else "student"
+
+
     if user.deactivated:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -68,9 +72,14 @@ async def login_student(request: LoginRequestStudent,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid credentials."
         )
+    
+    if (user.is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Access denied — admin accounts cannot log in as students"
+        )
 
-    # Determine user role
-    role = "admin" if (user.is_admin) else "student"
+    
     
     # Set school_id based on role
     school_id = None if user.is_super_admin else user.school_id
