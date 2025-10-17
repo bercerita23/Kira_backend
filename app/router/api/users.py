@@ -490,7 +490,7 @@ async def send_message(
     on_topic = any(w in context_text for w in user_words)
     
     base_system = (
-        f"You are BINTANG (Kira Monkey) tutor; respond warmly and encouragingly. {lang_rule} "
+        f"You are KIRA (Kira Monkey) tutor; respond warmly and encouragingly. {lang_rule} "
         "Keep replies 1–2 sentences, strictly under 20 words. "
         "Use ONLY this context to teach and practice:\n"
         f"{session.context_text}\n"
