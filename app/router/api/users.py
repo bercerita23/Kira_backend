@@ -16,7 +16,7 @@ from app.model.attempts import *
 from app.model.user_achievements import *
 from app.model.achievements import *
 from app.model.schools import School
-from sqlalchemy import func, asc, desc
+from sqlalchemy import func, asc, desc, null
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
@@ -578,33 +578,32 @@ async def chat_eligibility(
     start_of_week = today - timedelta(days=today.weekday())
 
     # Find previous sessions. 
-    sessions = (
-        db.query(ChatSession)
-        .filter(ChatSession.user_id == user.user_id,
-                ChatSession.created_at >= start_of_week).order_by(desc(ChatSession.ended_at)).all()
+    last_session = (
+          db.query(ChatSession).filter(
+          ChatSession.user_id == user.user_id,
+          ChatSession.created_at >= start_of_week,
+          ChatSession.ended_at.isnot(None),
+            )
+            .order_by(ChatSession.ended_at.desc())
+            .first()
     )
+    if last_session and last_session.ended_at:
+        recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id, Attempt.end_at > last_session.ended_at).order_by(Attempt.end_at.desc()).first()
+    else : 
+        recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id, Attempt.end_at > last_session.created_at).order_by(Attempt.end_at.desc()).first()
 
-    recent_attempts = db.query(Attempt).order_by(desc(Attempt.end_at)).filter().all()
-
-    if not sessions and len(recent_attempts) > 0:
+    if not last_session and recent_attempt:
         return {
             "chat_unlocked": True,
-            "recent_quiz": recent_attempts[0].quiz_id,
+            "recent_quiz": recent_attempt.quiz_id,
             "minutes_used": 0,
             "minutes_remaining": 60
         } 
-
-    last_session = sessions[0]
-
-    if last_session and last_session.ended_at is not None:
-        recent_attempt = recent_attempts.filter(Attempt.start_at >= last_session.ended_at)
+    
 
     total_minutes = 0
-    for s in sessions:
-        end_time = s.ended_at or datetime.now()
-        total_minutes += int((end_time - s.created_at).total_seconds() // 60)
-
-    if len(recent_attempts) < 1:
+    
+    if not recent_attempt:
         return {
             "chat_unlocked": False,
             "minutes_remaining": 0
@@ -612,7 +611,7 @@ async def chat_eligibility(
     else: 
         return {
             "chat_unlocked": True,
-            "recent_quiz": recent_attempt[0].quiz_id,
+            "recent_quiz": recent_attempt.quiz_id,
             "minutes_used": total_minutes,
             "minutes_remaining": 60
         } 
