@@ -191,16 +191,22 @@ async def register(request: AdminCreate,
         VerificationCode.code == request.code,
         VerificationCode.expires_at > datetime.now()
     ).first()
+
     if not verification_code: 
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect information entered.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either the verification code has expired, or an incorrect one was inputted. Please check again")
     
     temp_admin = db.query(TempAdmin).filter(TempAdmin.email == request.email).first()
     if not temp_admin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found.")
 
-    if (request.school_id != temp_admin.school_id) or (request.first_name != temp_admin.first_name) or (request.last_name != temp_admin.last_name): 
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect information entered.")
-    
+    if (request.school_id != temp_admin.school_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect school was chosen")
+    if  (request.first_name != temp_admin.first_name):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect First Name was inputted")
+    if (request.last_name != temp_admin.last_name): 
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect Last Name was inputted")
+
+
     admin = User(
         user_id = temp_admin.user_id, 
         school_id = temp_admin.school_id, 

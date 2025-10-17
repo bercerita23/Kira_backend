@@ -487,7 +487,7 @@ async def send_message(
         #decided to use 3.5 due to its speed
         model="gpt-3.5-turbo",  
         messages=[
-            {"role": "system", "content": f"You are BINTANG (means star in Indonesian) tutor also you can be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} Keep every answer strictly under 20 words. if user response is not related to the context reply with \"Great question! Let’s focus on this week’s lesson. Want to try one from the topic?\""},
+            {"role": "system", "content": f"You are KIRA tutor also you can be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} Keep every answer strictly under 20 words. if user response is not related to the context reply with \"Great question! Let’s focus on this week’s lesson. Want to try one from the topic?\""},
             {"role": "user", "content": request.message}
         ]
     )
@@ -557,13 +557,20 @@ async def chat_eligibility(
                 ChatSession.created_at >= start_of_week).order_by(desc(ChatSession.ended_at)).all()
     )
 
+    recent_attempts = db.query(Attempt).order_by(desc(Attempt.end_at)).filter().all()
+
+    if not sessions and len(recent_attempts) > 0:
+        return {
+            "chat_unlocked": True,
+            "recent_quiz": recent_attempts[0].quiz_id,
+            "minutes_used": 0,
+            "minutes_remaining": 60
+        } 
+
     last_session = sessions[0]
-    query = db.query(Attempt).order_by(desc(Attempt.end_at))
 
     if last_session and last_session.ended_at is not None:
-        query = query.filter(Attempt.start_at >= last_session.ended_at)
-
-    recent_attempts = query.all()
+        recent_attempt = recent_attempts.filter(Attempt.start_at >= last_session.ended_at)
 
     total_minutes = 0
     for s in sessions:
@@ -578,7 +585,7 @@ async def chat_eligibility(
     else: 
         return {
             "chat_unlocked": True,
-            "recent_quiz": recent_attempts[0].quiz_id,
+            "recent_quiz": recent_attempt[0].quiz_id,
             "minutes_used": total_minutes,
             "minutes_remaining": 60
         } 

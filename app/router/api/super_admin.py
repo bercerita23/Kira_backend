@@ -208,7 +208,6 @@ async def create_new_school(
     db: Session = Depends(get_db),
     user = Depends(get_current_super_admin)
 ):
-    # basic validation (Pydantic can also enforce these)
     if not new_school.email:
         raise HTTPException(400, detail="Email was not provided")
     if not new_school.name:
@@ -218,7 +217,6 @@ async def create_new_school(
     if not new_school.address:
         raise HTTPException(400, detail="Address was not provided")
 
-    # unique name check (more efficient than pulling all rows)
     exists_by_name = db.query(School).filter_by(name=new_school.name).first()
     if exists_by_name:
         raise HTTPException(422, detail="School with that name already exists")
@@ -226,7 +224,7 @@ async def create_new_school(
     # generate unique 8-digit school_id
     while True:
         candidate = str(random.randint(10**7, 10**8 - 1))
-        exists_by_id = db.query(School).filter_by(school_id=candidate).first()  # <-- fixed
+        exists_by_id = db.query(School).filter_by(school_id=candidate).first() 
         if not exists_by_id:
             break
 
