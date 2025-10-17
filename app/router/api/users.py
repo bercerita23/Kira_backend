@@ -34,7 +34,7 @@ import io
 from app.config import settings
 import fitz
 from pydantic import BaseModel
-
+import re
 router = APIRouter()
 
 # Add request schema for chat start
@@ -482,12 +482,39 @@ async def send_message(
     else:
         lang_rule = "Respond fully in English."
 
-    #  use cached context_text from DB instead of uploading PDF
+    user_text = request.message.lower()
+    context_text = (session.context_text or "").lower()
+    
+    # Simple “relatedness” heuristic: if any 3+ letter word from the user appears in the context, treat as on-topic.
+    user_words = [w for w in re.findall(r"[a-zA-Z]+", user_text) if len(w) >= 3]
+    on_topic = any(w in context_text for w in user_words)
+    
+    base_system = (
+        f"You are KIRA (Kira Monkey) tutor; respond warmly and encouragingly. {lang_rule} "
+        "Keep replies 1–2 sentences, strictly under 20 words. "
+        "Use ONLY this context to teach and practice:\n"
+        f"{session.context_text}\n"
+    )
+    
+    if on_topic:
+        system_directive = (
+            "If the message is related to the context, answer briefly and helpfully. "
+            "Optionally add a gentle nudge back to today's activity. "
+            "Be positive; avoid curt or scolding tones."
+        )
+    else:
+        system_directive = (
+            "If the message seems unrelated to the context, briefly acknowledge (≤10 words), "
+            "then kindly redirect to this week's lesson with encouragement. Examples:\n"
+            "- 'Nice question! Now, let’s practice today’s greetings.'\n"
+            "- 'Good point! Ready to try a greeting question?'\n"
+            "Avoid curt or dismissive phrasing."
+        )
+    
     completion = client.chat.completions.create(
-        #decided to use 3.5 due to its speed
-        model="gpt-3.5-turbo",  
+        model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": f"You are KIRA tutor also you can be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} Keep every answer strictly under 20 words. if user response is not related to the context reply with \"Great question! Let’s focus on this week’s lesson. Want to try one from the topic?\""},
+            {"role": "system", "content": base_system + system_directive},
             {"role": "user", "content": request.message}
         ]
     )
