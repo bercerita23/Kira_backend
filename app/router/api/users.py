@@ -589,8 +589,11 @@ async def chat_eligibility(
     )
     if last_session and last_session.ended_at:
         recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id, Attempt.end_at > last_session.ended_at).order_by(Attempt.end_at.desc()).first()
-    else : 
+    elif last_session : 
         recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id, Attempt.end_at > last_session.created_at).order_by(Attempt.end_at.desc()).first()
+    else :
+        recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id).order_by(Attempt.end_at.desc()).first()
+
 
     if not last_session and recent_attempt:
         return {
@@ -660,4 +663,5 @@ async def get_user_details(db: Session = Depends(get_db), user: User = Depends(g
         school_id=this_user.school_id,
         school_name=this_school.name,
         grade=this_user.grade,
+        username=this_user.username
     )
