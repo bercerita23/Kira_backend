@@ -32,7 +32,7 @@ from app.router.aws_s3 import S3Service
 from openai import OpenAI
 import io
 from app.config import settings
-import fitz
+import fitz, io, base64
 from pydantic import BaseModel
 import re
 router = APIRouter()
@@ -436,12 +436,33 @@ async def start_chat(
         raise HTTPException(status_code=400, detail="Session already created too recently")
 
     pdf_bytes = s3_service.get_file_by_url(topic.s3_bucket_url)
+    if hasattr(pdf_bytes, 'read'):
+        print('pdf is ok')
+    else:
+        print('pdf is not ok')
+        if isinstance(pdf_bytes, str):
+            try:
+                pdf_bytes = base64.b64decode(pdf_bytes, validate=True)
+            except Exception:
+                print('inter error')
+                raise TypeError("Expected PDF bytes, got str (not base64).")
+    if not pdf_bytes or not isinstance(pdf_bytes, (bytes, bytearray)):
+        raise TypeError(f"pdf_bytes must be bytes; got {type(pdf_bytes)} with len={len(pdf_bytes) if pdf_bytes else 0}")
+    
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    print("Encrypted:", getattr(doc, "is_encrypted", False))
+    print("Pages:", doc.page_count)
+
+    if doc.page_count == 0:
+        print('empty doc?')
+        raise RuntimeError("PDF has zero pages.")
+
     pdf_text = ""
     for page in doc:
+        print('page: ',page)
         pdf_text += page.get_text()
-
     pdf_text = pdf_text[:5000]
+    print("pdf text: ",pdf_text)
 
     session = ChatSession(
         user_id=user.user_id,
@@ -483,20 +504,21 @@ async def send_message(
         lang_rule = "Respond fully in English."
 
     user_text = request.message.lower()
-    context_text = (session.context_text or "").lower()
+    context_text = ( session.context_text or "").lower()
+    
     
     # Simple “relatedness” heuristic: if any 3+ letter word from the user appears in the context, treat as on-topic.
     user_words = [w for w in re.findall(r"[a-zA-Z]+", user_text) if len(w) >= 3]
     on_topic = any(w in context_text for w in user_words)
-    
     base_system = (
-        f"You are KIRA (Kira Monkey) tutor; respond warmly and encouragingly. {lang_rule} "
+        f"You are KIRA (Kira Monkey) tutor; respond warmly and encouragingly. You are teaching English to Indonesian students. Encourage them to learn{lang_rule} "
         "Keep replies 1–2 sentences, strictly under 20 words. "
         "Use ONLY this context to teach and practice:\n"
         f"{session.context_text}\n"
     )
     
     if on_topic:
+        print('This is on topic')
         system_directive = (
             "If the message is related to the context, answer briefly and helpfully. "
             "Optionally add a gentle nudge back to today's activity. "
@@ -504,13 +526,12 @@ async def send_message(
         )
     else:
         system_directive = (
-            "If the message seems unrelated to the context, briefly acknowledge (≤10 words), "
+            "If the message seems unrelated to the context, briefly acknowledge but do not answer the question (≤10 words), "
             "then kindly redirect to this week's lesson with encouragement. Examples:\n"
             "- 'Nice question! Now, let’s practice today’s greetings.'\n"
             "- 'Good point! Ready to try a greeting question?'\n"
             "Avoid curt or dismissive phrasing."
         )
-    
     completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
