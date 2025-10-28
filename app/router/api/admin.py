@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import null, text
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import label, literal_column
+from sqlalchemy import case, desc
 from app.database import get_db
 from app.schema.admin_schema import *
 from app.schema.user_schema import ApproveQuestions
@@ -16,7 +18,7 @@ from app.router.dependencies import *
 from typing import List, Annotated
 from datetime import datetime
 from app.model.points import Points
-from sqlalchemy import func, cast, Date, union_all, select
+from sqlalchemy import func, cast, Date, union_all, select, Float, null, text
 import hashlib
 import boto3
 from typing import Optional
@@ -766,7 +768,7 @@ async def replace_question_image(
 #     return {"content_url": topic_url[0]}
 
 # total time spent on quizzes and chat sessions per day for the admin's school
-@router.post("/quizzes", status_code=status.HTTP_200_OK)
+@router.get("/time-spent", status_code=status.HTTP_200_OK)
 async def get_total_time(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin)):
@@ -799,3 +801,152 @@ async def get_total_time(
     )
 
     results = db.execute(query).scalar()
+    return {"total_time_seconds": results or 0}
+
+
+@router.get("/quizzes", status_code=status.HTTP_200_OK)
+async def get_total_time(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)):
+    """Get time spent in quizzes/chat sessions for the admin's school."""
+
+    attempts_subq = (
+    select(
+        cast(Attempt.start_at, Date).label("just_date"),
+        (func.extract("epoch", Attempt.end_at - Attempt.start_at)).label("duration_seconds")
+    )
+    .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
+    .where(
+        Quiz.school_id == admin.school_id,  
+        Attempt.start_at.isnot(None),
+        Attempt.end_at.isnot(None)
+    ))
+
+    chats_subq = (
+        select(
+            cast(ChatSession.created_at, Date).label("just_date"),
+            (func.extract("epoch", ChatSession.ended_at - ChatSession.created_at)).label("duration_seconds")
+        ).join(User, User.user_id == ChatSession.user_id)
+        .where(User.school_id == admin.school_id, ChatSession.created_at.isnot(None), ChatSession.ended_at.isnot(None))
+    )
+
+    combined = union_all(attempts_subq, chats_subq)
+
+    query = select(
+        func.sum(combined.selected_columns.duration_seconds).label("total_avg_seconds")
+    )
+
+    results = db.execute(query).scalar()
+    return {"total_time_seconds": results or 0}
+
+
+@router.get("/mean-scores", status_code=status.HTTP_200_OK)
+async def get_mean_scores(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """Compute average quiz score (latest attempt only) per user in admin's school."""
+
+    latest_subq = (
+        select(
+            Attempt.attempt_id,
+            Attempt.quiz_id,
+            Attempt.user_id,
+            Attempt.pass_count,
+            Attempt.fail_count,
+            func.row_number()
+                .over(
+                    partition_by=[Attempt.quiz_id, Attempt.user_id],
+                    order_by=desc(Attempt.attempt_number)
+                )
+                .label("rn")
+        )
+        .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
+        .where(Quiz.school_id == admin.school_id)
+        .subquery()
+    )
+
+    query = (
+        select(
+            User.user_id,
+            User.first_name,
+            func.avg(
+                cast(
+                    (latest_subq.c.pass_count) / 
+                    func.nullif(latest_subq.c.pass_count + latest_subq.c.fail_count, 0),
+                    Float
+                )
+            ).label("mean_score")
+        )
+        .join(User, User.user_id == latest_subq.c.user_id)
+        .where(latest_subq.c.rn == 1)
+        .group_by(User.user_id, User.first_name)
+        .order_by(desc("mean_score"))
+    )
+
+    results = db.execute(query).fetchall()
+
+    return [
+        {
+            "user_id": row.user_id,
+            "first_name": row.first_name,
+            "mean_score": float(row.mean_score) if row.mean_score is not None else 0.0
+        }
+        for row in results
+    ]
+
+
+@router.get("/quiz-stats", status_code=status.HTTP_200_OK)
+async def get_quiz_statistics(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    latest_subq = (
+        select(
+            Attempt.quiz_id,
+            Attempt.user_id,
+            Attempt.pass_count,
+            Attempt.fail_count,
+            func.row_number()
+                .over(
+                    partition_by=[Attempt.quiz_id, Attempt.user_id],
+                    order_by=desc(Attempt.attempt_number)
+                )
+                .label("rn")
+        )
+        .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
+        .where(Quiz.school_id == admin.school_id)
+        .subquery()
+    )
+
+    score_expr = cast(
+        latest_subq.c.pass_count /
+        func.nullif(latest_subq.c.pass_count + latest_subq.c.fail_count, 0),
+        Float
+    )
+
+    query = (
+        select(
+            latest_subq.c.quiz_id,
+            func.avg(score_expr).label("mean_score"),
+            func.min(score_expr).label("min_score"),
+            func.max(score_expr).label("max_score"),
+            func.stddev(score_expr).label("stddev_score"),
+        )
+        .where(latest_subq.c.rn == 1)  
+        .group_by(latest_subq.c.quiz_id)
+        .order_by(latest_subq.c.quiz_id)
+    )
+
+    results = db.execute(query).fetchall()
+
+    return [
+        {
+            "quiz_id": row.quiz_id,
+            "mean_score": float(row.mean_score) if row.mean_score is not None else 0.0,
+            "min_score": float(row.min_score) if row.min_score is not None else 0.0,
+            "max_score": float(row.max_score) if row.max_score is not None else 0.0,
+            "stddev_score": float(row.stddev_score) if row.stddev_score is not None else 0.0,
+        }
+        for row in results
+    ]
