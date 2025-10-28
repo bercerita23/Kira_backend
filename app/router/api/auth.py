@@ -73,7 +73,7 @@ async def login_student(request: LoginRequestStudent,
             detail="Invalid credentials."
         )
     
-    if (user.is_admin):
+    if (user.is_admin or user.is_super_admin):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Access denied — admin accounts cannot log in as students"
@@ -139,7 +139,7 @@ async def login_administrator(request: LoginRequestAdmin,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User is deactivated"
         )
-
+    
     # Verify password
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
