@@ -925,16 +925,24 @@ async def get_quiz_statistics(
         Float
     )
 
+    completion_expr = func.count(latest_subq.c.user_id).label("completion_count")  # added
+    median_expr = func.percentile_cont(0.5).within_group(score_expr).label("median_score")  # added
+
+
     query = (
         select(
             latest_subq.c.quiz_id,
+            Quiz.name.label("quiz_name"),
             func.avg(score_expr).label("mean_score"),
             func.min(score_expr).label("min_score"),
             func.max(score_expr).label("max_score"),
             func.stddev(score_expr).label("stddev_score"),
+            median_expr,
+            completion_expr
         )
-        .where(latest_subq.c.rn == 1)  
-        .group_by(latest_subq.c.quiz_id)
+        .join(Quiz, Quiz.quiz_id == latest_subq.c.quiz_id)
+        .where(latest_subq.c.rn == 1)
+        .group_by(latest_subq.c.quiz_id, Quiz.name)
         .order_by(latest_subq.c.quiz_id)
     )
 
@@ -943,9 +951,12 @@ async def get_quiz_statistics(
     return [
         {
             "quiz_id": row.quiz_id,
+            "quiz_name": row.quiz_name,
             "mean_score": float(row.mean_score) if row.mean_score is not None else 0.0,
             "min_score": float(row.min_score) if row.min_score is not None else 0.0,
             "max_score": float(row.max_score) if row.max_score is not None else 0.0,
+            "median_score": float(row.median_score) if row.median_score is not None else 0.0, 
+            "completion": int(row.completion_count) if hasattr(row, "completion_count") else 0,
             "stddev_score": float(row.stddev_score) if row.stddev_score is not None else 0.0,
         }
         for row in results
