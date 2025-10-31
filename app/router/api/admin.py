@@ -942,8 +942,8 @@ async def get_quiz_statistics(
         )
         .join(Quiz, Quiz.quiz_id == latest_subq.c.quiz_id)
         .where(latest_subq.c.rn == 1)
-        .group_by(latest_subq.c.quiz_id, Quiz.name)
-        .order_by(latest_subq.c.quiz_id)
+        .group_by(latest_subq.c.quiz_id, Quiz.name, Quiz.created_at)
+        .order_by(Quiz.created_at.desc())
     )
 
     results = db.execute(query).fetchall()
