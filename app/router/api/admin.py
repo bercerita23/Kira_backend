@@ -961,3 +961,58 @@ async def get_quiz_statistics(
         }
         for row in results
     ]
+
+@router.get("/time-stats", status_code=status.HTTP_200_OK)
+async def get_average_time_per_student_per_month(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Compute one overall number:
+    average time (in minutes) per student per month 
+    combining quizzes and Kira chat sessions for the admin's school.
+    """
+
+    attempts_subq = (
+        select(
+            Attempt.user_id.label("user_id"),
+            func.date_trunc("month", Attempt.start_at).label("month_start"),
+            (func.extract("epoch", Attempt.end_at - Attempt.start_at) / 60.0).label("duration_minutes")
+        )
+        .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
+        .where(
+            Quiz.school_id == admin.school_id,
+            Attempt.start_at.isnot(None),
+            Attempt.end_at.isnot(None)
+        )
+    )
+
+    chats_subq = (
+        select(
+            ChatSession.user_id.label("user_id"),
+            func.date_trunc("month", ChatSession.created_at).label("month_start"),
+            (func.extract("epoch", ChatSession.ended_at - ChatSession.created_at) / 60.0).label("duration_minutes")
+        )
+        .join(User, User.user_id == ChatSession.user_id)
+        .where(
+            User.school_id == admin.school_id,
+            ChatSession.created_at.isnot(None),
+            ChatSession.ended_at.isnot(None)
+        )
+    )
+
+    combined = union_all(attempts_subq, chats_subq).subquery()
+    total_minutes = db.execute(select(func.sum(combined.c.duration_minutes))).scalar() or 0
+
+    student_count = db.execute(select(func.count(func.distinct(combined.c.user_id)))).scalar() or 0
+    month_count = db.execute(select(func.count(func.distinct(combined.c.month_start)))).scalar() or 0
+    avg_per_student_per_month = (
+        total_minutes / (student_count * month_count)
+        if student_count > 0 and month_count > 0
+        else 0.0
+    )
+
+    return {
+        "avg_student_per_month": round(avg_per_student_per_month, 2),
+        "total_minutes": round(total_minutes, 2),
+    }
