@@ -16,7 +16,7 @@ from app.model.attempts import *
 from app.model.user_achievements import *
 from app.model.achievements import *
 from app.model.schools import School
-from sqlalchemy import func, asc, desc
+from sqlalchemy import func, asc, desc, null
 from fastapi import BackgroundTasks
 from app.database.db import get_local_session
 from app.database.session import SQLALCHEMY_DATABASE_URL
@@ -32,9 +32,9 @@ from app.router.aws_s3 import S3Service
 from openai import OpenAI
 import io
 from app.config import settings
-import fitz
+import fitz, io, base64
 from pydantic import BaseModel
-
+import re
 router = APIRouter()
 
 # Add request schema for chat start
@@ -436,12 +436,33 @@ async def start_chat(
         raise HTTPException(status_code=400, detail="Session already created too recently")
 
     pdf_bytes = s3_service.get_file_by_url(topic.s3_bucket_url)
+    if hasattr(pdf_bytes, 'read'):
+        print('pdf is ok')
+    else:
+        print('pdf is not ok')
+        if isinstance(pdf_bytes, str):
+            try:
+                pdf_bytes = base64.b64decode(pdf_bytes, validate=True)
+            except Exception:
+                print('inter error')
+                raise TypeError("Expected PDF bytes, got str (not base64).")
+    if not pdf_bytes or not isinstance(pdf_bytes, (bytes, bytearray)):
+        raise TypeError(f"pdf_bytes must be bytes; got {type(pdf_bytes)} with len={len(pdf_bytes) if pdf_bytes else 0}")
+    
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    print("Encrypted:", getattr(doc, "is_encrypted", False))
+    print("Pages:", doc.page_count)
+
+    if doc.page_count == 0:
+        print('empty doc?')
+        raise RuntimeError("PDF has zero pages.")
+
     pdf_text = ""
     for page in doc:
+        print('page: ',page)
         pdf_text += page.get_text()
-
     pdf_text = pdf_text[:5000]
+    print("pdf text: ",pdf_text)
 
     session = ChatSession(
         user_id=user.user_id,
@@ -482,12 +503,39 @@ async def send_message(
     else:
         lang_rule = "Respond fully in English."
 
-    #  use cached context_text from DB instead of uploading PDF
+    user_text = request.message.lower()
+    context_text = ( session.context_text or "").lower()
+    
+    
+    # Simple “relatedness” heuristic: if any 3+ letter word from the user appears in the context, treat as on-topic.
+    user_words = [w for w in re.findall(r"[a-zA-Z]+", user_text) if len(w) >= 3]
+    on_topic = any(w in context_text for w in user_words)
+    base_system = (
+        f"You are KIRA (Kira Monkey) tutor; respond warmly and encouragingly. You are teaching English to Indonesian students. Encourage them to learn{lang_rule} "
+        "Keep replies 1–2 sentences, strictly under 20 words. "
+        "Use ONLY this context to teach and practice:\n"
+        f"{session.context_text}\n"
+    )
+    
+    if on_topic:
+        print('This is on topic')
+        system_directive = (
+            "If the message is related to the context, answer briefly and helpfully. "
+            "Optionally add a gentle nudge back to today's activity. "
+            "Be positive; avoid curt or scolding tones."
+        )
+    else:
+        system_directive = (
+            "If the message seems unrelated to the context, briefly acknowledge but do not answer the question (≤10 words), "
+            "then kindly redirect to this week's lesson with encouragement. Examples:\n"
+            "- 'Nice question! Now, let’s practice today’s greetings.'\n"
+            "- 'Good point! Ready to try a greeting question?'\n"
+            "Avoid curt or dismissive phrasing."
+        )
     completion = client.chat.completions.create(
-        #decided to use 3.5 due to its speed
-        model="gpt-3.5-turbo",  
+        model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": f"You are BINTANG (means star in Indonesian) tutor also you can be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} Keep every answer strictly under 20 words. if user response is not related to the context reply with \"Great question! Let’s focus on this week’s lesson. Want to try one from the topic?\""},
+            {"role": "system", "content": base_system + system_directive},
             {"role": "user", "content": request.message}
         ]
     )
@@ -551,26 +599,35 @@ async def chat_eligibility(
     start_of_week = today - timedelta(days=today.weekday())
 
     # Find previous sessions. 
-    sessions = (
-        db.query(ChatSession)
-        .filter(ChatSession.user_id == user.user_id,
-                ChatSession.created_at >= start_of_week).order_by(desc(ChatSession.ended_at)).all()
+    last_session = (
+          db.query(ChatSession).filter(
+          ChatSession.user_id == user.user_id,
+          ChatSession.created_at >= start_of_week,
+          ChatSession.ended_at.isnot(None),
+            )
+            .order_by(ChatSession.ended_at.desc())
+            .first()
     )
+    if last_session and last_session.ended_at:
+        recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id, Attempt.end_at > last_session.ended_at).order_by(Attempt.end_at.desc()).first()
+    elif last_session : 
+        recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id, Attempt.end_at > last_session.created_at).order_by(Attempt.end_at.desc()).first()
+    else :
+        recent_attempt = db.query(Attempt).order_by(desc(Attempt.end_at)).filter(Attempt.user_id == user.user_id).order_by(Attempt.end_at.desc()).first()
 
-    last_session = sessions[0]
-    query = db.query(Attempt).order_by(desc(Attempt.end_at))
 
-    if last_session and last_session.ended_at is not None:
-        query = query.filter(Attempt.start_at >= last_session.ended_at)
-
-    recent_attempts = query.all()
+    if not last_session and recent_attempt:
+        return {
+            "chat_unlocked": True,
+            "recent_quiz": recent_attempt.quiz_id,
+            "minutes_used": 0,
+            "minutes_remaining": 60
+        } 
+    
 
     total_minutes = 0
-    for s in sessions:
-        end_time = s.ended_at or datetime.now()
-        total_minutes += int((end_time - s.created_at).total_seconds() // 60)
-
-    if len(recent_attempts) < 1:
+    
+    if not recent_attempt:
         return {
             "chat_unlocked": False,
             "minutes_remaining": 0
@@ -578,7 +635,7 @@ async def chat_eligibility(
     else: 
         return {
             "chat_unlocked": True,
-            "recent_quiz": recent_attempts[0].quiz_id,
+            "recent_quiz": recent_attempt.quiz_id,
             "minutes_used": total_minutes,
             "minutes_remaining": 60
         } 
@@ -627,4 +684,5 @@ async def get_user_details(db: Session = Depends(get_db), user: User = Depends(g
         school_id=this_user.school_id,
         school_name=this_school.name,
         grade=this_user.grade,
+        username=this_user.username
     )
