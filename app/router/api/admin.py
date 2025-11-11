@@ -938,12 +938,13 @@ async def get_quiz_statistics(
             func.max(score_expr).label("max_score"),
             func.stddev(score_expr).label("stddev_score"),
             median_expr,
-            completion_expr
+            completion_expr,
+            func.array_agg(score_expr).label("scores")
         )
         .join(Quiz, Quiz.quiz_id == latest_subq.c.quiz_id)
         .where(latest_subq.c.rn == 1)
         .group_by(latest_subq.c.quiz_id, Quiz.name, Quiz.created_at)
-        .order_by(Quiz.created_at.desc())
+        .order_by(Quiz.created_at.asc())
     )
 
     results = db.execute(query).fetchall()
@@ -958,6 +959,8 @@ async def get_quiz_statistics(
             "median_score": float(row.median_score) if row.median_score is not None else 0.0, 
             "completion": int(row.completion_count) if hasattr(row, "completion_count") else 0,
             "stddev_score": float(row.stddev_score) if row.stddev_score is not None else 0.0,
+            "scores": [float(s) for s in (row.scores or [])],
+
         }
         for row in results
     ]
@@ -1016,3 +1019,4 @@ async def get_average_time_per_student_per_month(
         "avg_student_per_month": round(avg_per_student_per_month, 2),
         "total_minutes": round(total_minutes, 2),
     }
+
