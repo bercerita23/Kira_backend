@@ -870,6 +870,7 @@ async def get_mean_scores(
         select(
             User.user_id,
             User.first_name,
+            User.username,
             func.avg(
                 cast(
                     (latest_subq.c.pass_count) / 
@@ -880,7 +881,7 @@ async def get_mean_scores(
         )
         .join(User, User.user_id == latest_subq.c.user_id)
         .where(latest_subq.c.rn == 1)
-        .group_by(User.user_id, User.first_name)
+        .group_by(User.user_id, User.first_name, User.username)
         .order_by(desc("mean_score"))
     )
 
@@ -890,6 +891,7 @@ async def get_mean_scores(
         {
             "user_id": row.user_id,
             "first_name": row.first_name,
+            "username": row.username,
             "mean_score": float(row.mean_score) if row.mean_score is not None else 0.0
         }
         for row in results

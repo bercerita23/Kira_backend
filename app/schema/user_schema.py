@@ -10,6 +10,7 @@ class UserOut(BaseModel):
     school_id: Optional[str]
     school_name: Optional[str]
     grade: Optional[str]
+    username: Optional[str] = None
 
 class UserListResponse(BaseModel):
     Hello_From: List[UserOut]
