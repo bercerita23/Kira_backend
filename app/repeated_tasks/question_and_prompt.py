@@ -75,6 +75,24 @@ async def prompt_generation():
             ]
         )
 
+        summary = client.chat.completions.create(
+            model=OPENAI_MODEL, 
+            messages=[
+                {"role": "system", "content": ""}, 
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"Return a summary no more than 5000 words on the pdf that was given to you"},
+                        {"type": "file", "file": {"file_id": uploaded_file.id}}
+                    ]
+                }
+            ]
+        )
+
+        rn.summary = summary.choices[0].message.content or ""
+        await db.commit()
+
+
         # cleanup the uploaded file
         client.files.delete(uploaded_file.id)
 

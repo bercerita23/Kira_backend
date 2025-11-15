@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer, ARRAY
+from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer, ARRAY, Text
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from datetime import datetime
@@ -14,6 +14,7 @@ class Topic(Base):
     hash_value = Column(String(512), nullable=False)
     week_number = Column(Integer, nullable=False) 
     school_id = Column(String(8), ForeignKey("schools.school_id"), nullable=False)
+    summary = Column(Text, nullable=False, default="")
 
     school = relationship("School", back_populates="topics")
     questions = relationship("Question", back_populates="topic")
