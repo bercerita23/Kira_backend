@@ -89,7 +89,7 @@ async def prompt_generation():
             ]
         )
 
-        rn.summary = summary
+        rn.summary = summary.choices[0].message.content or ""
         await db.commit()
 
 
