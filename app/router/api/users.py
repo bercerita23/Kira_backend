@@ -443,35 +443,6 @@ async def start_chat(
     '''
         Replace with summary context from the Topic Table
     '''
-    
-    pdf_bytes = s3_service.get_file_by_url(topic.s3_bucket_url)
-    if hasattr(pdf_bytes, 'read'):
-        print('pdf is ok')
-    else:
-        print('pdf is not ok')
-        if isinstance(pdf_bytes, str):
-            try:
-                pdf_bytes = base64.b64decode(pdf_bytes, validate=True)
-            except Exception:
-                print('inter error')
-                raise TypeError("Expected PDF bytes, got str (not base64).")
-    if not pdf_bytes or not isinstance(pdf_bytes, (bytes, bytearray)):
-        raise TypeError(f"pdf_bytes must be bytes; got {type(pdf_bytes)} with len={len(pdf_bytes) if pdf_bytes else 0}")
-    
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    print("Encrypted:", getattr(doc, "is_encrypted", False))
-    print("Pages:", doc.page_count)
-
-    if doc.page_count == 0:
-        print('empty doc?')
-        raise RuntimeError("PDF has zero pages.")
-
-    pdf_text = ""
-    for page in doc:
-        print('page: ',page)
-        pdf_text += page.get_text()
-    pdf_text = pdf_text[:5000]
-    print("pdf text: ",pdf_text)
 
     session = ChatSession(
         user_id=user.user_id,
@@ -493,18 +464,13 @@ async def send_message(
     user: User = Depends(get_current_user)
 ):
     session = db.query(ChatSession).filter_by(id=request.session_id, user_id=user.user_id).first()
-    history_rows = db.query(ChatMessage).filter_by(ChatMessage.session_id==request.session_id).order_by(ChatMessage.created_at.asc()).all()
-    messages = [
-        {"role": "system", "content": f"You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} Keep every answer strictly under 20 words. if user response is not related to the context reply with \"Great question! Let’s focus on this week’s lesson. Want to try one from the topic?\""},
-    ]
-    messages.extend({"role": r.role, "content": r.content} for r in history_rows)
-    messages.append({"role": "user", "content": request.message})
 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     # increment turn count
     session.turn_count += 1
+    print(session.turn_count)
     db.commit()
 
     # language stage logic
@@ -519,6 +485,12 @@ async def send_message(
     else:
         lang_rule = "Respond fully in English."
 
+    history_rows = db.query(ChatMessage).filter(ChatMessage.session_id==request.session_id).order_by(ChatMessage.created_at.asc()).all()
+    messages = [
+        {"role": "system", "content": f"You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at 12 turns, the conversation is fully in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"},
+    ]
+    messages.extend({"role": r.role, "content": r.content} for r in history_rows)
+    messages.append({"role": "user", "content": request.message})
 
     #  use cached context_text from DB instead of uploading PDF
     completion = client.chat.completions.create(
