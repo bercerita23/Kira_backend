@@ -541,8 +541,10 @@ async def content_upload(
         state = "READY_FOR_GENERATION", 
         hash_value = hash_value, 
         week_number = week_number, 
-        school_id = school_id
+        school_id = school_id, 
+        summary = ""
     )
+    
     new_reference_count = ReferenceCount(
         hash_value = hash_value,
         count = 1, 
