@@ -42,7 +42,12 @@ async def login_student(request: LoginRequestStudent,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either username or email must be provided"
         )
-
+    # Validate that school_id is provided
+    if not request.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="School ID is required"
+        )
     # Find user by username or email
     user = None
     if request.username:
@@ -55,7 +60,11 @@ async def login_student(request: LoginRequestStudent,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid credentials."
         )
-    
+    if user.school_id != request.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student does not belong to the specified school"
+        )    
     # Determine user role
     role = "admin" if (user.is_admin) else "student"
 
@@ -237,6 +246,13 @@ async def register(request: AdminCreate,
     db.commit()
     return {"message": "You have been registered successfully."}
 
+def cleanup_expired_codes(db: Session, email: str):
+    """Remove expired verification codes for a specific email"""
+    db.query(VerificationCode).filter(
+        VerificationCode.email == email,
+        VerificationCode.expires_at <= datetime.now()
+    ).delete(synchronize_session=False)
+    db.commit()
 
 @router.post("/request-reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_reset_password(request_body: ResetPasswordRequest, 
@@ -264,16 +280,33 @@ async def request_reset_password(request_body: ResetPasswordRequest,
         user = db.query(User).filter(User.email == request_body.email).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+    # Add this validation
+        if not user.is_admin and not user.is_super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Email-based password reset is only available for administrators"
+            )        
         code = str(uuid4())[:8]
         expires_at = datetime.now() + timedelta(minutes=180)
         
-        reset_code_entry = VerificationCode(
-            email=user.email,
-            code=code,
-            expires_at=expires_at
-        )
-        db.add(reset_code_entry)
+        # Check if there's an existing verification code for this email
+        existing_code = db.query(VerificationCode).filter(
+            VerificationCode.email == user.email
+        ).first()
+        
+        if existing_code:
+            # Update existing code instead of creating new one
+            existing_code.code = code
+            existing_code.expires_at = expires_at
+        else:
+            # Create new code only if none exists
+            reset_code_entry = VerificationCode(
+                email=user.email,
+                code=code,
+                expires_at=expires_at
+            )
+            db.add(reset_code_entry)
+        
         db.commit()
         
         # send the reset password email to the admin
@@ -294,7 +327,6 @@ async def request_reset_password(request_body: ResetPasswordRequest,
             send_reset_request_to_admin("login", email,
                                     student.username, student.school_id, student.first_name)
         
-
         return {"message": f"Reset password email sent"}
         
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
