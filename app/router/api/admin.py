@@ -238,10 +238,9 @@ async def update_student_info(
     db: Session = Depends(get_db), 
     admin: User = Depends(get_current_admin)
 ):
-    """_summary_: Update student information (first_name, last_name, email, notes)
+    """_summary_: Update student information (first_name, last_name, email, notes, username)
     
     Args:
-        username (str): Username of the student to update
         student_update (StudentUpdate): Updated student information
         db (Session): Database session
         admin (User): Current admin user
@@ -252,9 +251,9 @@ async def update_student_info(
     Returns:
         dict: Success message
     """
-    # Find the student in admin's school
+    # Find the student in admin's school using current username
     student = db.query(User).filter(
-        User.username == student_update.username,
+        User.username == student_update.username,  # Use current username to find
         User.school_id == admin.school_id,
         User.is_admin == False
     ).first()
@@ -265,6 +264,15 @@ async def update_student_info(
             detail="Student not found in your school"
         )
     
+    # Check if new username already exists (if updating username)
+    if student_update.new_username is not None and student_update.new_username != student_update.username:
+        existing_user = db.query(User).filter(User.username == student_update.new_username).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already exists"
+            )
+    
     # Update only provided fields
     if student_update.first_name is not None:
         student.first_name = student_update.first_name
@@ -274,12 +282,13 @@ async def update_student_info(
         student.email = student_update.email
     if student_update.notes is not None:
         student.notes = student_update.notes
-    if student_update.username is not None:
-        student.username = student_update.username
+    if student_update.new_username is not None:  # Use new_username field
+        student.username = student_update.new_username
     if student_update.school is not None:
         student.school = student_update.school
     if student_update.grade is not None:
         student.grade = student_update.grade
+    
     db.commit()
     return {"message": "Student information updated successfully"}
 

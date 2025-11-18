@@ -43,6 +43,7 @@ class AdminCreate(BaseModel):
 class LoginRequestStudent(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
+    school_id: str
     password: str
 
 class LoginRequestAdmin(BaseModel):
