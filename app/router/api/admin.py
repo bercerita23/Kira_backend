@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, File, Uplo
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql import label, literal_column
-from sqlalchemy import case, desc
+from sqlalchemy import case, desc, asc
 from app.database import get_db
 from app.schema.admin_schema import *
 from app.schema.user_schema import ApproveQuestions
@@ -72,11 +72,14 @@ async def get_detail_student_info(
 
     # 5. Quiz Attempts
     attempts = user.attempts
+    
     quiz_history = {}
     for a in attempts:
+        if not a.quiz:
+            continue
         if a.quiz_id not in quiz_history:
             quiz_history[a.quiz_id] = {
-                "quiz_name": a.quiz.name if a.quiz else "",
+                "quiz_name": a.quiz.name ,
                 "attempts": [],
             }
         quiz_history[a.quiz_id]["attempts"].append(a)
@@ -107,7 +110,7 @@ async def get_detail_student_info(
             "date": a.end_at,
             "description": f"Quiz {a.quiz.name} Completed"
         }
-        for a in attempts if a.pass_count
+        for a in attempts if a.quiz is not None and a.pass_count
     ]
 
     # 7. Achievements
@@ -121,7 +124,7 @@ async def get_detail_student_info(
         } for a in achievements
     ]
     achs = sorted(achs, key=lambda x: x["completed_at"], reverse=True)
-
+    quiz_list = sorted(quiz_list, key=lambda q: q["date"])
 
     # 8. Assemble response
     return {
