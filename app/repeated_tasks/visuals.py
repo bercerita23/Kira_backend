@@ -24,7 +24,7 @@ async def visual_generation():
 
     # Initialize Gemini client
     client = genai.Client(api_key=settings.GOOGLE_API_KEY)
-    model_name = "gemini-2.5-flash-preview-image"
+    model_name = "gemini-2.5-flash-image"
 
     # Load Gemini role prompt
     try:
