@@ -8,6 +8,7 @@ from app.router.aws_s3 import S3Service
 from app.model.topics import Topic
 from app.model.questions import Question
 from app.model.users import User
+from app.model.schools import School
 from google import genai
 from google.genai import types
 from app.config import settings
@@ -26,14 +27,6 @@ async def visual_generation():
     client = genai.Client(api_key=settings.GOOGLE_API_KEY)
     model_name = "gemini-2.5-flash-image"
 
-    # Load Gemini role prompt
-    try:
-        with open("app/gen_ai_prompts/gemini_role_prompt.txt", encoding="utf-8") as f:
-            gemini_role_prompt = f.read()
-    except FileNotFoundError:
-        gemini_role_prompt = "Create an educational image based on the following prompt:"
-        print("gemini_role_prompt.txt not found, using default prompt")
-
     try:
         async with get_async_db() as db:
             # Process ONE topic at a time
@@ -49,6 +42,26 @@ async def visual_generation():
                 return  # No work to do, let the outer loop handle scheduling
 
             print(f"Processing topic {topic.topic_id}: '{topic.topic_name}' (School: {topic.school_id})")
+
+            # Get school information for gemini_prompt
+            school = (await db.execute(select(School)
+                    .filter(School.school_id == topic.school_id)
+                    )).scalars().first()
+            
+            if not school:
+                raise Exception(f"School not found for topic {topic.topic_id}")
+
+            # Use school-specific prompt or fallback to default file
+            if school.gemini_prompt:
+                gemini_role_prompt = school.gemini_prompt
+            else:
+                # Load Gemini role prompt from file
+                try:
+                    with open("app/gen_ai_prompts/gemini_role_prompt.txt", encoding="utf-8") as f:
+                        gemini_role_prompt = f.read()
+                except FileNotFoundError:
+                    gemini_role_prompt = "Create an educational image based on the following prompt:"
+                    print("gemini_role_prompt.txt not found, using default prompt")
 
             # Questions that need visuals
             q_need = [
@@ -176,4 +189,4 @@ async def visual_generation():
     except Exception as e:
         print(f"Error in visual_generation task: {e}")
         await db.rollback()
-        raise  
+        raise
