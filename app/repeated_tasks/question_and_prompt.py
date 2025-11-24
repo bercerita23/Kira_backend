@@ -6,12 +6,12 @@ from app.database.db import get_async_db
 from app.database.session import SQLALCHEMY_DATABASE_URL
 from app.model.topics import Topic
 from app.model.questions import *
+from app.model.schools import School
 from app.router.aws_s3 import S3Service
 from app.config import settings
 import re, json
 
 OPENAI_MODEL = "gpt-4o-mini"
-NUM_OF_QUESTION = 5
 s3_service = S3Service()
 
 async def prompt_generation():
@@ -30,16 +30,32 @@ async def prompt_generation():
         if not rn:
             return  # No work to do, let the outer loop handle the sleep
         
-                # Check if questions are already generated for this topic
+        # Get school information for max_questions and openai_prompt
+        school = (await db.execute(select(School)
+                .filter(School.school_id == rn.school_id)
+                )).scalars().first()
+        
+        if not school:
+            raise Exception(f"School not found for topic {rn.topic_id}")
+        
+        max_questions = school.max_questions
+        
+        # Check if questions are already generated for this topic
         questions = (await db.execute(select(Question)
                 .filter(Question.topic_id == rn.topic_id)
                 )).scalars().all()
                 
-        if len(questions) == 5:
+        if len(questions) >= max_questions:
             # If questions exist, update the topic state and skip generation
             rn.state = "PROMPTS_GENERATED"
             await db.commit()
             return
+        elif len(questions) > 0:
+            # If some questions exist but not the right amount, clear them first
+            for question in questions:
+                await db.delete(question)
+        await db.commit()
+
         # else get the pdf from S3 as bytes
         pdf_bytes = s3_service.get_file_by_url(rn.s3_bucket_url)
 
@@ -56,19 +72,30 @@ async def prompt_generation():
             purpose="assistants"
         )
 
-        # read the openai system prompt
-        with open("app/gen_ai_prompts/open_ai_role_prompt.txt", encoding="utf-8") as f:
-            role_prompt = f.read()
+        # Use school-specific prompt or fallback to default file
+        if school.openai_prompt:
+            role_prompt = school.openai_prompt
+        else:
+            # read the openai system prompt from file
+            with open("app/gen_ai_prompts/open_ai_role_prompt.txt", encoding="utf-8") as f:
+                role_prompt = f.read()
+
+        # Always append the instruction content
+        with open("app/gen_ai_prompts/open_ai_role_prompt_instruction.txt", encoding="utf-8") as f:
+            instruction_content = f.read()
+        
+        # Combine role prompt with instructions
+        combined_prompt = role_prompt + "\n\n" + instruction_content
 
         # chat completion with the PDF attached
         completion = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[
-                {"role": "system", "content": role_prompt},
+                {"role": "system", "content": combined_prompt},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Return {NUM_OF_QUESTION} questions in total of the pdf file that was given to you."},
+                        {"type": "text", "text": f"Return {max_questions} questions in total of the pdf file that was given to you."},
                         {"type": "file", "file": {"file_id": uploaded_file.id}}
                     ]
                 }
