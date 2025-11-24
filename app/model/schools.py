@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum as SAEnum, text
+from sqlalchemy import Column, Integer, String, Enum as SAEnum, Text, text
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
 from enum import Enum as PyEnum
@@ -26,6 +26,12 @@ class School(Base):
         nullable=False,
         server_default=text("'active'::school_status"),
     )
+    
+    
+    max_questions = Column(Integer, default=5, nullable=False)
+    openai_prompt = Column(Text, nullable=True)
+    gemini_prompt = Column(Text, nullable=True) 
+    kira_chat_prompt = Column(Text, nullable=True)
 
     users = relationship("User", back_populates="school")
     quizzes = relationship("Quiz", back_populates="school") 
