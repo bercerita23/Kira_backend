@@ -10,7 +10,7 @@ from app.model.schools import School
 from app.router.aws_s3 import S3Service
 from app.config import settings
 import re, json
-
+#20 question takes around 5 min to generate
 OPENAI_MODEL = "gpt-4o-mini"
 s3_service = S3Service()
 
@@ -138,15 +138,29 @@ async def prompt_generation():
 
         try:
             data = json.loads(json_str)
+            
+            # Debug logging
+            total_questions_in_response = 0
+            for category, questions in data.items():
+                total_questions_in_response += len(questions)
+                print(f"Category '{category}': {len(questions)} questions")
+            
+            print(f"OpenAI returned {total_questions_in_response} total questions")
+            print(f"School max_questions: {max_questions}")
+            
         except json.JSONDecodeError:
-            # fallback: return None or raise
             raise Exception("No json found in the response in either formats")
 
         #################################################
         ### step 4: update question entries in the DB ###
         #################################################
+        questions_added = 0
         for category, questions in data.items():
             for q in questions:
+                # Stop when we reach the limit
+                if questions_added >= max_questions:
+                    break
+                    
                 new_question = Question(
                     school_id=rn.school_id,
                     topic_id=rn.topic_id,
@@ -158,7 +172,12 @@ async def prompt_generation():
                     image_prompt=q['visual_prompt'],
                     image_url=None 
                 )
-                db.add(new_question) 
+                db.add(new_question)
+                questions_added += 1
+            
+            # Break outer loop too if limit reached
+            if questions_added >= max_questions:
+                break
         
         # change to next state
         rn.state = "PROMPTS_GENERATED"
