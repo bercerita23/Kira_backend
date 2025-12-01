@@ -47,15 +47,11 @@ async def invite(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered. Please use a different email.",
         )
-
-    # step 2: generate a verification code and store it in the database
-    result = db.query(VerificationCode).filter(
-        VerificationCode.email == request.email).first()
-    if result: 
-        temp = db.execute(
-        text("DELETE FROM verification_codes WHERE email = :email"),
-        {"email": request.email}
-    )
+    # 2. Remove any existing temp_admin with this email
+    db.query(TempAdmin).filter(TempAdmin.email == request.email).delete()
+    db.commit()
+    # 3. Remove any existing verification code for this email
+    db.query(VerificationCode).filter(VerificationCode.email == request.email).delete()
     db.commit()
     # generate a 8 digit code and store it in the database with email & expiration time of 180 minutes
     code = str(uuid4())[:8]
@@ -269,12 +265,14 @@ async def delete_school(school_id: str, db:Session = Depends(get_db), user: User
 
 @router.get('/inactiveschools')
 async def get_inactive_schools(db: Session = Depends(get_db), user: User = Depends(get_current_super_admin)):
-    schools = db.query(School).filter(School.status == SchoolStatus.inactive).all()
+    schools = db.query(School).filter(
+        (School.status == SchoolStatus.inactive) | (School.status == SchoolStatus.suspended)
+    ).all()
     if not schools:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
-            detail="there is no schools that are inactive"
-            )
+            detail="there is no schools that are inactive or suspended"
+        )
     return {
         "schools": schools
     }
