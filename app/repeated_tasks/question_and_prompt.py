@@ -10,7 +10,7 @@ from app.model.schools import School
 from app.router.aws_s3 import S3Service
 from app.config import settings
 import re, json
-#20 question takes around 5 min to generate
+#20 question takes around 5co min to generate
 OPENAI_MODEL = "gpt-4o-mini"
 s3_service = S3Service()
 
