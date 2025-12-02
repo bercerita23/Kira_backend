@@ -52,3 +52,5 @@ class TopicOut(BaseModel):
 
 class TopicsOut(BaseModel): 
     topics: list[TopicOut]
+class ResendVerificationEmail(BaseModel):
+    email: str
