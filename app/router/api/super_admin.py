@@ -280,12 +280,12 @@ async def get_inactive_schools(db: Session = Depends(get_db), user: User = Depen
 @router.post("/activateschool/{school_id}", status_code=status.HTTP_202_ACCEPTED)
 async def activate_school(school_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_super_admin)):
     school = db.get(School, school_id)
-    if not school or school.status != SchoolStatus.inactive:
+    if not school or school.status not in [SchoolStatus.inactive, SchoolStatus.suspended]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="School with that id is not found"
-        )
-    if(school.status == SchoolStatus.inactive):
+    )
+    if(school.status == SchoolStatus.inactive or school.status == SchoolStatus.suspended):
         school.status = SchoolStatus.active
     db.commit()
     return {
