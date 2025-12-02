@@ -468,6 +468,12 @@ async def send_message(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Get school information for kira_chat_prompt
+    school = db.query(School).filter(School.school_id == user.school_id).first()
+    
+    if not school:
+        raise HTTPException(status_code=404, detail="School not found")
+
     # increment turn count
     session.turn_count += 1
     print(session.turn_count)
@@ -485,16 +491,24 @@ async def send_message(
     else:
         lang_rule = "Respond fully in English."
 
+    # Use school-specific chat prompt or fallback to default
+    if school.kira_chat_prompt:
+        base_system_prompt = school.kira_chat_prompt
+    else:
+        # Default chat prompt
+        base_system_prompt = "You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day."
+    
+    # Build the full system message
+    system_message = f"{base_system_prompt} {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at 12 turns, the conversation is fully in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"
+
     history_rows = db.query(ChatMessage).filter(ChatMessage.session_id==request.session_id).order_by(ChatMessage.created_at.asc()).all()
     messages = [
-        {"role": "system", "content": f"You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day. {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at 12 turns, the conversation is fully in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"},
+        {"role": "system", "content": system_message},
     ]
     messages.extend({"role": r.role, "content": r.content} for r in history_rows)
     messages.append({"role": "user", "content": request.message})
 
-    #  use cached context_text from DB instead of uploading PDF
     completion = client.chat.completions.create(
-        #decided to use 3.5 due to its speed
         model="gpt-3.5-turbo",  
         messages=messages
     )
