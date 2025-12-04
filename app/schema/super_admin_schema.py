@@ -25,6 +25,7 @@ class AdminOut(BaseModel):
 
 class SchoolWithAdminsOut(BaseModel):
     school_id: str
+    display_id: Optional[str]
     name: str
     email: str
     data_fetched_at: datetime

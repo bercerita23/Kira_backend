@@ -187,6 +187,7 @@ async def get_schools_with_admins(
 
         school_data = SchoolWithAdminsOut(
             school_id=school.school_id,
+            display_id=school.display_id,
             name=school.name,
             email=school.email,
             data_fetched_at=datetime.now(),
@@ -344,6 +345,7 @@ async def get_all_school(db: Session = Depends(get_db)):
     temp = db.query(School).filter(School.status == SchoolStatus.active).all()
     res = [{
         "school_id": school.school_id,
+        "display_id": school.display_id,
         "name": school.name,
         "status": school.status.value,
         "email" : school.email, 
