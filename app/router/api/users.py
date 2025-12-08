@@ -445,7 +445,6 @@ async def start_chat(
     # Create new session with context from topic summary
     session = ChatSession(
         user_id=user.user_id,
-        topic_id=quiz.topic_id,  # Include this if your model requires it
         turn_count=0,
         context_text=topic.summary if topic.summary else "No context available"
     )
