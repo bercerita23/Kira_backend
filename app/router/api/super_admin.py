@@ -235,6 +235,16 @@ async def create_new_school(
         raise HTTPException(400, detail="Phone number was not provided")
     if not new_school.address:
         raise HTTPException(400, detail="Address was not provided")
+    #change
+    # Validate prompts: either all three are provided or none
+    prompts = [new_school.question_prompt, new_school.image_prompt, new_school.kira_chat_prompt]
+    filled_prompts = [p for p in prompts if p is not None and p.strip()]
+    
+    if 0 < len(filled_prompts) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="All three prompts (question_prompt, image_prompt, kira_chat_prompt) must be provided together or all left empty"
+        )
 
     exists_by_name = db.query(School).filter_by(name=new_school.name).first()
     if exists_by_name:
@@ -254,6 +264,10 @@ async def create_new_school(
         telephone=new_school.telephone,
         school_id=candidate,
         status=SchoolStatus.active,
+        max_questions=new_school.max_questions if new_school.max_questions is not None else 5,
+        question_prompt=new_school.question_prompt,
+        image_prompt=new_school.image_prompt,
+        kira_chat_prompt=new_school.kira_chat_prompt
     )
 
     db.add(school)
@@ -269,6 +283,7 @@ async def create_new_school(
             "telephone": school.telephone,
             "address": school.address,
             "status": school.status.value,
+            "max_questions": school.max_questions
         },
     }
 
