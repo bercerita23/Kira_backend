@@ -43,7 +43,7 @@ async def visual_generation():
 
             print(f"Processing topic {topic.topic_id}: '{topic.topic_name}' (School: {topic.school_id})")
 
-            # Get school information for gemini_prompt
+            # Get school information for image_prompt
             school = (await db.execute(select(School)
                     .filter(School.school_id == topic.school_id)
                     )).scalars().first()
@@ -52,8 +52,8 @@ async def visual_generation():
                 raise Exception(f"School not found for topic {topic.topic_id}")
 
             # Use school-specific prompt or fallback to default file
-            if school.gemini_prompt:
-                gemini_role_prompt = school.gemini_prompt
+            if school.image_prompt:
+                gemini_role_prompt = school.image_prompt
             else:
                 # Load Gemini role prompt from file
                 try:
