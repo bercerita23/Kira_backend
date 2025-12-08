@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
 from app.model.temp_admins import TempAdmin
@@ -17,6 +17,7 @@ from app.router.dependencies import *
 from datetime import datetime
 from app.schema.super_admin_schema import NewSchool, UpdateSchool
 from app.model.schools import SchoolStatus
+import random
 
 router = APIRouter()
 
@@ -155,7 +156,29 @@ async def reactivate_admin(request: AdminActivation,
 def get_all_users(db: Session = Depends(get_db), 
                   super_admin: User = Depends(get_current_super_admin)):
     users = db.query(User).filter(User.deactivated.is_(False)).all()
-    return { "Hello_Form:" : users }
+    
+    # Enrich users with school name
+    enriched_users = []
+    for user in users:
+        user_dict = {
+            "user_id": user.user_id,
+            "school_id": user.school_id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "created_at": user.created_at,
+            "notes": user.notes,
+            "last_login_time": user.last_login_time,
+            "is_super_admin": user.is_super_admin,
+            "is_admin": user.is_admin,
+            "username": user.username,
+            "deactivated": user.deactivated,
+            "grade": user.grade,
+            "school_name": user.school.name if user.school else None
+        }
+        enriched_users.append(user_dict)
+    
+    return {"Hello_Form:": enriched_users}
 
 @router.get("/schools_with_admins", response_model=SchoolsResponse, status_code=status.HTTP_200_OK)
 async def get_schools_with_admins(
@@ -187,7 +210,6 @@ async def get_schools_with_admins(
 
         school_data = SchoolWithAdminsOut(
             school_id=school.school_id,
-            display_id=school.display_id,
             name=school.name,
             email=school.email,
             data_fetched_at=datetime.now(),
@@ -345,7 +367,6 @@ async def get_all_school(db: Session = Depends(get_db)):
     temp = db.query(School).filter(School.status == SchoolStatus.active).all()
     res = [{
         "school_id": school.school_id,
-        "display_id": school.display_id,
         "name": school.name,
         "status": school.status.value,
         "email" : school.email, 

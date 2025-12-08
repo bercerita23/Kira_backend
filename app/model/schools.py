@@ -12,7 +12,6 @@ class School(Base):
     __tablename__ = "schools"
     #test
     school_id = Column(String(8), primary_key=True, index=True)
-    display_id = Column(String(50), nullable=True, unique=True)
     email = Column(String(255), nullable=False, unique=True) #shang-chen.hsieh@sjsu.edu
     name = Column(String(255), nullable=False)
     address = Column(String(255), nullable=True)
@@ -30,8 +29,8 @@ class School(Base):
     
     
     max_questions = Column(Integer, default=5, nullable=False)
-    openai_prompt = Column(Text, nullable=True)
-    gemini_prompt = Column(Text, nullable=True) 
+    question_prompt = Column(Text, nullable=True)
+    image_prompt = Column(Text, nullable=True) 
     kira_chat_prompt = Column(Text, nullable=True)
 
     users = relationship("User", back_populates="school")
