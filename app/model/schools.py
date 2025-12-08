@@ -29,8 +29,8 @@ class School(Base):
     
     
     max_questions = Column(Integer, default=5, nullable=False)
-    openai_prompt = Column(Text, nullable=True)
-    gemini_prompt = Column(Text, nullable=True) 
+    question_prompt = Column(Text, nullable=True)
+    image_prompt = Column(Text, nullable=True) 
     kira_chat_prompt = Column(Text, nullable=True)
 
     users = relationship("User", back_populates="school")

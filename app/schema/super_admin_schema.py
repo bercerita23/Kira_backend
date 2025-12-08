@@ -25,6 +25,7 @@ class AdminOut(BaseModel):
 
 class SchoolWithAdminsOut(BaseModel):
     school_id: str
+    display_id: Optional[str]
     name: str
     email: str
     data_fetched_at: datetime
@@ -43,7 +44,12 @@ class NewSchool(BaseModel):
     email: str
     address: str
     telephone: str
+    max_questions: Optional[int] = None
+    question_prompt: Optional[str] = None
+    image_prompt: Optional[str] = None
+    kira_chat_prompt: Optional[str] = None
 
+    
 class UpdateSchool(BaseModel):
     name: str 
     email: str

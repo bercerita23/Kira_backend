@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.model.users import User
 from app.model.verification_codes import VerificationCode
 from app.model.temp_admins import TempAdmin
@@ -17,6 +17,7 @@ from app.router.dependencies import *
 from datetime import datetime
 from app.schema.super_admin_schema import NewSchool, UpdateSchool
 from app.model.schools import SchoolStatus
+import random
 
 router = APIRouter()
 
@@ -155,7 +156,29 @@ async def reactivate_admin(request: AdminActivation,
 def get_all_users(db: Session = Depends(get_db), 
                   super_admin: User = Depends(get_current_super_admin)):
     users = db.query(User).filter(User.deactivated.is_(False)).all()
-    return { "Hello_Form:" : users }
+    
+    # Enrich users with school name
+    enriched_users = []
+    for user in users:
+        user_dict = {
+            "user_id": user.user_id,
+            "school_id": user.school_id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "created_at": user.created_at,
+            "notes": user.notes,
+            "last_login_time": user.last_login_time,
+            "is_super_admin": user.is_super_admin,
+            "is_admin": user.is_admin,
+            "username": user.username,
+            "deactivated": user.deactivated,
+            "grade": user.grade,
+            "school_name": user.school.name if user.school else None
+        }
+        enriched_users.append(user_dict)
+    
+    return {"Hello_Form:": enriched_users}
 
 @router.get("/schools_with_admins", response_model=SchoolsResponse, status_code=status.HTTP_200_OK)
 async def get_schools_with_admins(
@@ -213,6 +236,16 @@ async def create_new_school(
     if not new_school.address:
         raise HTTPException(400, detail="Address was not provided")
 
+    # Validate prompts: either all three are provided or none
+    prompts = [new_school.question_prompt, new_school.image_prompt, new_school.kira_chat_prompt]
+    filled_prompts = [p for p in prompts if p is not None and p.strip()]
+    
+    if 0 < len(filled_prompts) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="All three prompts (question_prompt, image_prompt, kira_chat_prompt) must be provided together or all left empty"
+        )
+
     exists_by_name = db.query(School).filter_by(name=new_school.name).first()
     if exists_by_name:
         raise HTTPException(422, detail="School with that name already exists")
@@ -231,6 +264,10 @@ async def create_new_school(
         telephone=new_school.telephone,
         school_id=candidate,
         status=SchoolStatus.active,
+        max_questions=new_school.max_questions if new_school.max_questions is not None else 5,
+        question_prompt=new_school.question_prompt,
+        image_prompt=new_school.image_prompt,
+        kira_chat_prompt=new_school.kira_chat_prompt
     )
 
     db.add(school)
@@ -246,6 +283,7 @@ async def create_new_school(
             "telephone": school.telephone,
             "address": school.address,
             "status": school.status.value,
+            "max_questions": school.max_questions
         },
     }
 

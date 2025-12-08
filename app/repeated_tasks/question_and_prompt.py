@@ -30,7 +30,7 @@ async def prompt_generation():
         if not rn:
             return  # No work to do, let the outer loop handle the sleep
         
-        # Get school information for max_questions and openai_prompt
+        # Get school information for max_questions and question_prompt
         school = (await db.execute(select(School)
                 .filter(School.school_id == rn.school_id)
                 )).scalars().first()
@@ -73,8 +73,8 @@ async def prompt_generation():
         )
 
         # Use school-specific prompt or fallback to default file
-        if school.openai_prompt:
-            role_prompt = school.openai_prompt
+        if school.question_prompt:
+            role_prompt = school.question_prompt
         else:
             # read the openai system prompt from file
             with open("app/gen_ai_prompts/open_ai_role_prompt.txt", encoding="utf-8") as f:
