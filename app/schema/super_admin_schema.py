@@ -44,7 +44,12 @@ class NewSchool(BaseModel):
     email: str
     address: str
     telephone: str
+    max_questions: Optional[int] = None
+    question_prompt: Optional[str] = None
+    image_prompt: Optional[str] = None
+    kira_chat_prompt: Optional[str] = None
 
+    
 class UpdateSchool(BaseModel):
     name: str 
     email: str
