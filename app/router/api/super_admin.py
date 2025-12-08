@@ -235,7 +235,7 @@ async def create_new_school(
         raise HTTPException(400, detail="Phone number was not provided")
     if not new_school.address:
         raise HTTPException(400, detail="Address was not provided")
-
+    #change
     # Validate prompts: either all three are provided or none
     prompts = [new_school.question_prompt, new_school.image_prompt, new_school.kira_chat_prompt]
     filled_prompts = [p for p in prompts if p is not None and p.strip()]
