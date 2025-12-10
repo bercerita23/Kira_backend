@@ -56,3 +56,7 @@ class UpdateSchool(BaseModel):
     address: str
     telephone: str
     school_id: str
+    max_questions: Optional[int] = None
+    question_prompt: Optional[str] = None
+    image_prompt: Optional[str] = None
+    kira_chat_prompt: Optional[str] = None

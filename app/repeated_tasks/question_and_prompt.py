@@ -45,13 +45,13 @@ async def prompt_generation():
                 .filter(Question.topic_id == rn.topic_id)
                 )).scalars().all()
                 
-        if len(questions) >= max_questions:
-            # If questions exist, update the topic state and skip generation
+        if len(questions) == max_questions:
+            # If exact number of questions exist, update the topic state and skip generation
             rn.state = "PROMPTS_GENERATED"
             await db.commit()
             return
         elif len(questions) > 0:
-            # If some questions exist but not the right amount, clear them first
+            # If wrong number of questions exist, clear them first
             for question in questions:
                 await db.delete(question)
         await db.commit()
@@ -87,21 +87,84 @@ async def prompt_generation():
         # Combine role prompt with instructions
         combined_prompt = role_prompt + "\n\n" + instruction_content
 
-        # chat completion with the PDF attached
-        completion = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": combined_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"Return {max_questions} questions in total of the pdf file that was given to you."},
-                        {"type": "file", "file": {"file_id": uploaded_file.id}}
-                    ]
-                }
-            ]
-        )
+        # Retry logic for exact question generation
+        max_retries = 5
+        all_generated_questions = []
+        
+        for attempt in range(max_retries):
+            remaining_questions = max_questions - len(all_generated_questions)
+            
+            if remaining_questions <= 0:
+                break
+            
+            print(f"Attempt {attempt + 1}/{max_retries}: Requesting {remaining_questions} questions")
+            
+            # chat completion with the PDF attached - STRONGER PROMPT
+            completion = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": combined_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text", 
+                                "text": f"""CRITICAL INSTRUCTION: You MUST generate EXACTLY {remaining_questions} questions - no more, no less.
+                                
+Count carefully before responding. The total number of questions across ALL categories must equal EXACTLY {remaining_questions}.
 
+This is attempt {attempt + 1} of {max_retries}. We need precisely {remaining_questions} questions.
+
+Generate the questions from the PDF file provided."""
+                            },
+                            {"type": "file", "file": {"file_id": uploaded_file.id}}
+                        ]
+                    }
+                ]
+            )
+
+            # extract the model's outputs
+            response = completion.choices[0].message.content
+
+            #####################################################
+            ### step 3: extract information from the response ###
+            #####################################################
+            json_match = re.search(r"```json(.*?)```", response, re.DOTALL)
+
+            if json_match:
+                json_str = json_match.group(1).strip()
+            else:
+                json_str = response.strip()
+
+            try:
+                data = json.loads(json_str)
+                
+                # Extract questions from response
+                questions_in_this_attempt = []
+                for category, questions in data.items():
+                    for q in questions:
+                        questions_in_this_attempt.append(q)
+                
+                print(f"Attempt {attempt + 1}: Received {len(questions_in_this_attempt)} questions")
+                
+                # Add questions up to our limit
+                for q in questions_in_this_attempt:
+                    if len(all_generated_questions) >= max_questions:
+                        break
+                    all_generated_questions.append(q)
+                
+                print(f"Total accumulated: {len(all_generated_questions)}/{max_questions}")
+                
+                # If we have exactly the right number, break
+                if len(all_generated_questions) == max_questions:
+                    print(f"✓ Success! Generated exactly {max_questions} questions")
+                    break
+                    
+            except json.JSONDecodeError as e:
+                print(f"Attempt {attempt + 1}: JSON decode error - {str(e)}")
+                continue
+
+        # Generate summary (only once)
         summary = client.chat.completions.create(
             model=OPENAI_MODEL, 
             messages=[
@@ -119,67 +182,37 @@ async def prompt_generation():
         rn.summary = summary.choices[0].message.content or ""
         await db.commit()
 
-
         # cleanup the uploaded file
         client.files.delete(uploaded_file.id)
 
-        # extract the model's outputs
-        response = completion.choices[0].message.content
-
-        #####################################################
-        ### step 3: extract information from the response ###
-        #####################################################
-        json_match = re.search(r"```json(.*?)```", response, re.DOTALL)
-
-        if json_match:
-            json_str = json_match.group(1).strip()
-        else:
-            json_str = response.strip()
-
-        try:
-            data = json.loads(json_str)
-            
-            # Debug logging
-            total_questions_in_response = 0
-            for category, questions in data.items():
-                total_questions_in_response += len(questions)
-                print(f"Category '{category}': {len(questions)} questions")
-            
-            print(f"OpenAI returned {total_questions_in_response} total questions")
-            print(f"School max_questions: {max_questions}")
-            
-        except json.JSONDecodeError:
-            raise Exception("No json found in the response in either formats")
+        # Verify we have EXACTLY the right number of questions
+        if len(all_generated_questions) != max_questions:
+            raise Exception(
+                f"Failed to generate exactly {max_questions} questions after {max_retries} attempts. "
+                f"Got {len(all_generated_questions)} questions instead."
+            )
 
         #################################################
         ### step 4: update question entries in the DB ###
         #################################################
-        questions_added = 0
-        for category, questions in data.items():
-            for q in questions:
-                # Stop when we reach the limit
-                if questions_added >= max_questions:
-                    break
-                    
-                new_question = Question(
-                    school_id=rn.school_id,
-                    topic_id=rn.topic_id,
-                    content=q["question"],
-                    options=q.get("options", []),
-                    question_type=q["type"],
-                    points=1,
-                    answer=q["correct_answer"],
-                    image_prompt=q['visual_prompt'],
-                    image_url=None 
-                )
-                db.add(new_question)
-                questions_added += 1
-            
-            # Break outer loop too if limit reached
-            if questions_added >= max_questions:
-                break
+        # Take EXACTLY max_questions (in case we somehow got more)
+        for q in all_generated_questions[:max_questions]:
+            new_question = Question(
+                school_id=rn.school_id,
+                topic_id=rn.topic_id,
+                content=q["question"],
+                options=q.get("options", []),
+                question_type=q["type"],
+                points=1,
+                answer=q["correct_answer"],
+                image_prompt=q['visual_prompt'],
+                image_url=None 
+            )
+            db.add(new_question)
         
         # change to next state
         rn.state = "PROMPTS_GENERATED"
         await db.commit()
+        
+        print(f"✓ Successfully saved {max_questions} questions to database")
         return  # Task completed successfully
