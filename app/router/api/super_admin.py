@@ -364,14 +364,53 @@ def update_school(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="School with that id was not found"
             )
-    if school.email is not updated_school.email: 
+    
+    # Check if any prompts are being updated
+    prompts_to_update = [
+        updated_school.question_prompt,
+        updated_school.image_prompt,
+        updated_school.kira_chat_prompt
+    ]
+    
+    provided_prompts = [p for p in prompts_to_update if p is not None]
+    
+    # Check if all current prompts are NULL
+    current_prompts_are_null = all([
+        school.question_prompt is None,
+        school.image_prompt is None,
+        school.kira_chat_prompt is None
+    ])
+    
+    # RULE: If current prompts are ALL NULL, user MUST provide all 3 or none
+    if current_prompts_are_null and 0 < len(provided_prompts) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="When prompts are empty, all three prompts (question_prompt, image_prompt, kira_chat_prompt) must be provided together"
+        )
+    
+    # If current prompts exist (not all NULL), user can update any number of prompts
+    
+    if school.email != updated_school.email: 
         school.email = updated_school.email
-    if school.address is not updated_school.address: 
+    if school.address != updated_school.address: 
         school.address = updated_school.address
-    if school.telephone is not updated_school.telephone: 
+    if school.telephone != updated_school.telephone: 
         school.telephone = updated_school.telephone 
-    if school.name is not updated_school.name: 
-        school.name = updated_school.name 
+    if school.name != updated_school.name: 
+        school.name = updated_school.name
+    
+    # Update max_questions if provided
+    if updated_school.max_questions is not None:
+        school.max_questions = updated_school.max_questions
+    
+    # Update prompts individually if provided
+    if updated_school.question_prompt is not None:
+        school.question_prompt = updated_school.question_prompt
+    if updated_school.image_prompt is not None:
+        school.image_prompt = updated_school.image_prompt
+    if updated_school.kira_chat_prompt is not None:
+        school.kira_chat_prompt = updated_school.kira_chat_prompt
+    
     db.commit()
     return {
         "message": "School is updated"
@@ -386,6 +425,10 @@ async def get_all_school(db: Session = Depends(get_db)):
         "status": school.status.value,
         "email" : school.email, 
         "telephone" : school.telephone, 
-        "address" : school.address
+        "address" : school.address,
+        "max_questions": school.max_questions,
+        "question_prompt": school.question_prompt,
+        "image_prompt": school.image_prompt,
+        "kira_chat_prompt": school.kira_chat_prompt
     } for school in temp]
     return {"schools": res}
