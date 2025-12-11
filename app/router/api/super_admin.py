@@ -381,15 +381,34 @@ def update_school(
         school.kira_chat_prompt is None
     ])
     
-    # RULE: If current prompts are ALL NULL, user MUST provide all 3 or none
+    # RULE 1: If current prompts are ALL NULL, user MUST provide all 3 or none
     if current_prompts_are_null and 0 < len(provided_prompts) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="When prompts are empty, all three prompts (question_prompt, image_prompt, kira_chat_prompt) must be provided together"
         )
     
-    # If current prompts exist (not all NULL), user can update any number of prompts
+    # RULE 2: If trying to remove/empty prompts, all 3 must be provided and all must be empty
+    if len(provided_prompts) > 0:
+        # Check which provided prompts are empty strings
+        empty_prompts = [p for p in provided_prompts if not p or not p.strip()]
+        
+        # If any prompt is being emptied
+        if len(empty_prompts) > 0:
+            # Must provide all 3 prompts when trying to empty
+            if len(provided_prompts) < 3:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="To remove custom prompts, all three prompts must be provided together"
+                )
+            # All 3 must be empty (no partial emptying)
+            if len(empty_prompts) != 3:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="All three prompts must be emptied together. Cannot remove only some prompts."
+                )
     
+    # Update basic fields
     if school.email != updated_school.email: 
         school.email = updated_school.email
     if school.address != updated_school.address: 
@@ -403,17 +422,24 @@ def update_school(
     if updated_school.max_questions is not None:
         school.max_questions = updated_school.max_questions
     
-    # Update prompts individually if provided
+    # Update prompts - convert empty strings to None
     if updated_school.question_prompt is not None:
-        school.question_prompt = updated_school.question_prompt
+        school.question_prompt = updated_school.question_prompt.strip() if updated_school.question_prompt.strip() else None
     if updated_school.image_prompt is not None:
-        school.image_prompt = updated_school.image_prompt
+        school.image_prompt = updated_school.image_prompt.strip() if updated_school.image_prompt.strip() else None
     if updated_school.kira_chat_prompt is not None:
-        school.kira_chat_prompt = updated_school.kira_chat_prompt
+        school.kira_chat_prompt = updated_school.kira_chat_prompt.strip() if updated_school.kira_chat_prompt.strip() else None
     
     db.commit()
+    db.refresh(school)
+    
     return {
-        "message": "School is updated"
+        "message": "School is updated",
+        "school": {
+            "school_id": school.school_id,
+            "name": school.name,
+            "custom_prompts_active": school.question_prompt is not None
+        }
     }
 
 @router.get("/schools", response_model=dict, status_code=status.HTTP_200_OK)
