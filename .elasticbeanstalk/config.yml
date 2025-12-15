@@ -1,4 +1,6 @@
 branch-defaults:
+  bugfix/admin-dash:
+    environment: Kira-api-env
   feature/prod:
     environment: Kira-api-env
     group_suffix: null
@@ -19,7 +21,7 @@ global:
   instance_profile: null
   platform_name: null
   platform_version: null
-  profile: Kira/Sean
+  profile: default
   repository: null
   sc: git
   workspace_type: Application
