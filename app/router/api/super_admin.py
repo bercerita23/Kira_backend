@@ -458,3 +458,39 @@ async def get_all_school(db: Session = Depends(get_db)):
         "kira_chat_prompt": school.kira_chat_prompt
     } for school in temp]
     return {"schools": res}
+
+@router.get("/default-prompts", status_code=status.HTTP_200_OK)
+def get_default_prompts(super_admin: User = Depends(get_current_super_admin)):
+    """
+    Return default prompts for question generation, image generation, and Kira chat.
+    Used when creating new schools or when schools don't have custom prompts.
+    """
+    try:
+        # Read question generation prompt
+        with open("app/gen_ai_prompts/open_ai_role_prompt.txt", encoding="utf-8") as f:
+            default_question_prompt = f.read()
+        
+        # Read image generation prompt
+        with open("app/gen_ai_prompts/gemini_role_prompt.txt", encoding="utf-8") as f:
+            default_image_prompt = f.read()
+        
+        # Default Kira chat prompt (same as used in users.py)
+        default_kira_chat_prompt = "You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day."
+        
+        return {
+            "default_max_questions": 5,
+            "default_question_prompt": default_question_prompt,
+            "default_image_prompt": default_image_prompt,
+            "default_kira_chat_prompt": default_kira_chat_prompt
+        }
+        
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prompt file not found: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reading default prompts: {str(e)}"
+        )
