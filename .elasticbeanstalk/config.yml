@@ -1,4 +1,6 @@
 branch-defaults:
+  bugfix/admin-dash:
+    environment: Kira-api-env
   feature/prod:
     environment: Kira-api-env
     group_suffix: null
