@@ -504,7 +504,6 @@ async def send_message(
     messages = [
         {"role": "system", "content": system_message},
     ]
-    messages.extend({"role": r.role, "content": r.content} for r in history_rows)
     messages.append({"role": "user", "content": request.message})
 
     completion = client.chat.completions.create(

@@ -63,7 +63,7 @@ async def worker_main():
         run_task("ready_for_review", ready_for_review, 30),
         run_task("visual_generation", visual_generation, 30),
     )
-
+#test
 # Remove the if __name__ check
 # Just run it directly when module is executed
 try:
