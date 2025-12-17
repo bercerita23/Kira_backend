@@ -23,7 +23,6 @@ async def run_task(name: str, func: Callable, interval: int = 30):
     while True:
         lock = task_locks[name]
         if lock.locked():
-            # Another instance is running, wait for next interval
             await asyncio.sleep(interval)
             continue
 
@@ -31,20 +30,18 @@ async def run_task(name: str, func: Callable, interval: int = 30):
             async with lock:
                 try:
                     await func()
-                    consecutive_errors = 0  # Reset on success
+                    consecutive_errors = 0
                 except Exception as e:
                     consecutive_errors += 1
                     error_msg = str(e)
                     print(f"Error in {name}: {error_msg}")
                     
-                    # Exponential backoff on connection errors
                     if "remaining connection slots are reserved" in error_msg:
                         backoff = min(interval * (2 ** consecutive_errors), max_backoff)
                         print(f"{name}: Connection pool exhausted, backing off for {backoff}s")
                         await asyncio.sleep(backoff)
                         continue
 
-            # Normal interval between runs
             await asyncio.sleep(interval)
 
         except Exception as outer_e:
@@ -53,20 +50,27 @@ async def run_task(name: str, func: Callable, interval: int = 30):
 
 async def worker_main():
     """Run generation tasks concurrently with the same logic as before"""
-    print(f"🚀 Worker starting in {settings.ENV} mode...")
-    print("=" * 50)
-    print("Running tasks concurrently:")
-    print("  - PromptGen (every 30s)")
-    print("  - VisualGen (every 30s)")
-    print("  - ReadyCheck (every 30s)")
-    print("=" * 50)
+    print(f"🚀 Worker starting in {settings.ENV} mode...", flush=True)
+    print("=" * 50, flush=True)
+    print("Running tasks concurrently:", flush=True)
+    print("  - PromptGen (every 30s)", flush=True)
+    print("  - VisualGen (every 30s)", flush=True)
+    print("  - ReadyCheck (every 30s)", flush=True)
+    print("=" * 50, flush=True)
     
-    # Run all tasks concurrently (same as old main.py)
     await asyncio.gather(
         run_task("prompt_generation", prompt_generation, 30),
         run_task("ready_for_review", ready_for_review, 30),
         run_task("visual_generation", visual_generation, 30),
     )
 
-if __name__ == "__main__":
+# Remove the if __name__ check
+# Just run it directly when module is executed
+try:
+    print("WORKER BOOTING", flush=True)
     asyncio.run(worker_main())
+except Exception as e:
+    import traceback
+    print("WORKER CRASHED:", flush=True)
+    traceback.print_exc()
+    raise
