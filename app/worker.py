@@ -53,15 +53,15 @@ async def worker_main():
     print(f"🚀 Worker starting in {settings.ENV} mode...", flush=True)
     print("=" * 50, flush=True)
     print("Running tasks concurrently:", flush=True)
-    print("  - PromptGen (every 30s)", flush=True)
-    print("  - VisualGen (every 30s)", flush=True)
-    print("  - ReadyCheck (every 30s)", flush=True)
+    print("  - PromptGen (every 15s)", flush=True)
+    print("  - VisualGen (every 15s)", flush=True)
+    print("  - ReadyCheck (every 15s)", flush=True)
     print("=" * 50, flush=True)
     
     await asyncio.gather(
-        run_task("prompt_generation", prompt_generation, 30),
-        run_task("ready_for_review", ready_for_review, 30),
-        run_task("visual_generation", visual_generation, 30),
+        run_task("prompt_generation", prompt_generation, 15),
+        run_task("ready_for_review", ready_for_review, 15),
+        run_task("visual_generation", visual_generation, 15),
     )
 #test
 # Remove the if __name__ check
