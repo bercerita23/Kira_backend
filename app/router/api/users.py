@@ -474,7 +474,6 @@ async def send_message(
 
     # increment turn count
     session.turn_count += 1
-    print(session.turn_count)
     db.commit()
 
     lang_bahasa_rule = ""
@@ -513,7 +512,6 @@ async def send_message(
     messages.extend({"role": r.role, "content": r.content} for r in history_rows)
     messages.append({"role": "user", "content": request.message + lang_bahasa_rule})
 
-    print("messages: ", messages)
 
     completion = client.chat.completions.create(
         model="gpt-3.5-turbo",  
