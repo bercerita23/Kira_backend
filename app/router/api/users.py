@@ -474,28 +474,33 @@ async def send_message(
 
     # increment turn count
     session.turn_count += 1
-    print(session.turn_count)
     db.commit()
+
+    lang_bahasa_rule = ""
 
     # language stage logic
     if session.turn_count <= 2:
         lang_rule = "Respond only in Bahasa Indonesia."
-    elif session.turn_count <= 5:
+    elif session.turn_count <= 3:
         lang_rule = "Respond 70% in Bahasa Indonesia, 30% in English (ex: Saya baik, terima kasih! How are you today?)"
-    elif session.turn_count <= 8:
+    elif session.turn_count <= 4:
         lang_rule = "Respond 50% in Bahasa Indonesia, 50% in English (ex: Mungkin jalan-jalan ke mall, and after that nonton movie with friends)"
-    elif session.turn_count <= 12:
+    elif session.turn_count <= 6:
         lang_rule = "Respond 30% in Bahasa Indonesia, 70% in English."
     else:
         lang_rule = "Respond fully in English."
+        lang_bahasa_rule = "Bisa jelaskan pakai bahasa inggris?"
 
     # Use school-specific chat prompt or fallback to default
     if school.kira_chat_prompt:
-        system_message = school.kira_chat_prompt + f"Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the client,  Keep conversations simple, and under 20 words. If its your first time, greet them. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"
+        system_message = school.kira_chat_prompt + f"Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} turn you have talked to the client,  Keep conversations simple, and under 20 words. If its your first time, greet them. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"
     else:
         # Default chat prompt
         base_system_prompt = "You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day."
-        system_message = f"{base_system_prompt} {lang_rule} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at 12 turns, the conversation is fully in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"
+        system_message = f"{base_system_prompt} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. You should guide the student to ask questions, if they are not, ask them questions. It is important for you to {lang_rule} {lang_bahasa_rule}"
+
+        print("system message", system_message)
+
     
     # Build the full system message
     
@@ -504,7 +509,9 @@ async def send_message(
     messages = [
         {"role": "system", "content": system_message},
     ]
-    messages.append({"role": "user", "content": request.message})
+    messages.extend({"role": r.role, "content": r.content} for r in history_rows)
+    messages.append({"role": "user", "content": request.message + lang_bahasa_rule})
+
 
     completion = client.chat.completions.create(
         model="gpt-3.5-turbo",  
