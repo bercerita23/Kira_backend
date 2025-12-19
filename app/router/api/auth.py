@@ -134,7 +134,6 @@ async def login_administrator(request: LoginRequestAdmin,
     Returns:
         Token: Access token for successful authentication
     """
-
     user = db.query(User).filter(User.email  == request.email).first()
 
     if not user:
@@ -155,6 +154,22 @@ async def login_administrator(request: LoginRequestAdmin,
             detail="User is deactivated"
         )
     
+    # Only require school_id for non-super-admins
+    if not user.is_super_admin:
+        if not request.school_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Admins must select a school to login"
+            )
+        # Ensure both are strings and strip whitespace
+        user_school_id = str(user.school_id).strip() if user.school_id else None
+        req_school_id = str(request.school_id).strip() if request.school_id else None
+        if user_school_id != req_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Admin does not belong to the specified school"
+            )
+
     # Verify password
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(
@@ -162,13 +177,13 @@ async def login_administrator(request: LoginRequestAdmin,
             detail="Invalid Credentials"
         )
 
-    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     # Token creation based on role
     role = None
     school_id = None
     if user.is_super_admin:
         role = "super_admin"
+        school_id = None
     else:
         role = "admin"
         school_id = user.school_id
