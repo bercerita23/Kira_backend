@@ -49,3 +49,4 @@ class LoginRequestStudent(BaseModel):
 class LoginRequestAdmin(BaseModel):
     email: str
     password: str
+    school_id: Optional[str] = None
