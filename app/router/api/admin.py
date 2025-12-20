@@ -31,6 +31,9 @@ from app.router.s3_signer import presign_get
 from datetime import datetime, timedelta
 import random
 from app.router.aws_s3 import *
+import os
+import tempfile
+import shutil
 #test
 
 router = APIRouter()
@@ -464,6 +467,101 @@ async def increase_count(
     return {
         "message": f"File has been successfully uploaded."
     }
+
+
+
+CHUNK_DIR = os.path.join(tempfile.gettempdir(), "chunk_uploads")
+os.makedirs(CHUNK_DIR, exist_ok=True)
+
+@router.post("/content-upload-chunk", response_model=dict, status_code=status.HTTP_200_OK)
+async def content_upload_chunk(
+    file: UploadFile = File(...),
+    chunk_index: int = Form(...),
+    total_chunks: int = Form(...),
+    upload_id: str = Form(...),
+    filename: str = Form(...),
+    title: str = Form(...),
+    week_number: int = Form(...),
+    hash_value: str = Form(...),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """
+    Upload a chunk of a file. Chunks are stored in a temporary directory.
+    When all chunks are uploaded, they are assembled and uploaded to S3,
+    and a Topic and ReferenceCount are created just like /content-upload.
+    """
+    upload_dir = os.path.join(CHUNK_DIR, upload_id)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index}")
+    with open(chunk_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    uploaded_chunks = [name for name in os.listdir(upload_dir) if name.startswith("chunk_")]
+    if len(uploaded_chunks) == total_chunks:
+        assembled_path = os.path.join(upload_dir, filename)
+        with open(assembled_path, "wb") as assembled:
+            for i in range(total_chunks):
+                chunk_file = os.path.join(upload_dir, f"chunk_{i}")
+                with open(chunk_file, "rb") as cf:
+                    assembled.write(cf.read())
+        with open(assembled_path, "rb") as f:
+            file_content = f.read()
+        try:
+            s3_url = s3_service.upload_file_to_s3(
+                file_content=file_content,
+                school_id=admin.school_id,
+                filename=filename,
+                week_number=week_number,
+                folder_prefix='content'
+            )
+            if not s3_url:
+                shutil.rmtree(upload_dir, ignore_errors=True)
+                return {
+                    "message": "Failed to upload file to S3",
+                    "status": "error"
+                }
+        except Exception as e:
+            shutil.rmtree(upload_dir, ignore_errors=True)
+            return {
+                "message": f"Error during S3 upload: {str(e)}",
+                "status": "error"
+            }
+
+        # Insert Topic and ReferenceCount, just like /content-upload
+        new_topic = Topic(
+            topic_name=title,
+            s3_bucket_url=s3_url,
+            updated_at=datetime.now(),
+            state="READY_FOR_GENERATION",
+            hash_value=hash_value,
+            week_number=week_number,
+            school_id=admin.school_id,
+            summary=""
+        )
+        new_reference_count = ReferenceCount(
+            hash_value=hash_value,
+            count=1,
+            referred_s3_url=s3_url
+        )
+        db.add(new_reference_count)
+        db.add(new_topic)
+        db.commit()
+        db.refresh(new_topic)
+        db.refresh(new_reference_count)
+
+        send_upload_notification(admin.email, filename)
+        shutil.rmtree(upload_dir, ignore_errors=True)
+        return {
+            "message": f"File {filename} has been successfully uploaded."
+        }
+
+    return {"message": f"Chunk {chunk_index+1}/{total_chunks} uploaded for upload_id {upload_id}."}
+
+
+
 
 @router.post("/remove-content", response_model=dict, status_code=status.HTTP_200_OK)
 async def decrease_count(
