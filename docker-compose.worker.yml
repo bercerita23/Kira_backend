@@ -3,7 +3,7 @@ services:
     image: 947119549699.dkr.ecr.us-east-2.amazonaws.com/kira/worker-docker-img-repo:${IMAGE_TAG:-latest}
     platform: linux/amd64
     restart: always
-    command: sh -c "celery -A app.tasks worker --loglevel=info & python -m app.start_celery"
+    command: python -m app.worker
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
       - API_VERSION=${API_VERSION}
