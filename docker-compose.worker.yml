@@ -3,7 +3,7 @@ services:
     image: 947119549699.dkr.ecr.us-east-2.amazonaws.com/kira/worker-docker-img-repo:${IMAGE_TAG:-latest}
     platform: linux/amd64
     restart: always
-    command: python -m app.worker
+    command: sh -c "celery -A app.tasks worker --loglevel=info & python -m app.start_celery"
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
       - API_VERSION=${API_VERSION}
@@ -28,3 +28,5 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - FRONTEND_URL=${FRONTEND_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
