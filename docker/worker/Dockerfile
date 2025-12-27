@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "-m", "app.worker"]
+CMD sh -c "celery -A app.tasks worker --loglevel=info & python -m app.start_celery"
