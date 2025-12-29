@@ -27,4 +27,5 @@ celery_app.conf.update(
             "schedule": 10.0,
         },
     },
+    worker_prefetch_multiplier=1,
 )
