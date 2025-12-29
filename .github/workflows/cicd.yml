@@ -75,7 +75,6 @@ jobs:
           EB_APP: ${{ vars.EB_APP }}
           EB_ENV: ${{ vars.EB_ENV }}
         run: |
-          cp docker-compose.web.yml docker-compose.yml
           sed -i -e "s/\${IMAGE_TAG:-latest}/$IMAGE_TAG/g" docker-compose.yml
           cp docker-compose.web.yml docker-compose.yml
           zip -r $APP_VERSION docker-compose.yml
@@ -149,8 +148,8 @@ jobs:
           EB_APP: ${{ vars.EB_APP }}
           EB_ENV: ${{ vars.EB_WORKER_ENV }}
         run: |
+          sed -i -e "s/\${IMAGE_TAG:-latest}/$IMAGE_TAG/g" docker-compose.worker.yml
           cp docker-compose.worker.yml docker-compose.yml
-          sed -i -e "s/\${IMAGE_TAG:-latest}/$IMAGE_TAG/g" docker-compose.yml
           zip -r $APP_VERSION docker-compose.yml
           aws s3 cp $APP_VERSION s3://$EB_BUCKET/$EB_APP/$APP_VERSION
           aws elasticbeanstalk create-application-version \
