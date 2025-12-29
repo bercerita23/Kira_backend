@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     
     FRONTEND_URL: str
-
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
 # class ContainerDevSettings(Settings):
 #     model_config = SettingsConfigDict(
 #         env_file="./backend/.env.dev", env_file_encoding="utf-8", case_sensitive=True
