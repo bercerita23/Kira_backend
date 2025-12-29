@@ -1,10 +1,5 @@
+os.system("celery -A app.celery_app.celery_app worker --beat --loglevel=info")
 # app/start_celery.py
-from app.tasks import worker_loop
-import time
+import os
 
-print("[Bootstrap] Enqueuing worker loop", flush=True)
-worker_loop.delay()
-
-# Block forever so the process doesn't exit
-while True:
-    time.sleep(3600)
+os.system("celery -A app.celery_app.celery_app worker --beat --loglevel=info")
