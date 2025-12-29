@@ -33,7 +33,7 @@ jobs:
           pytest tests
         # or use:
         # python -m unittest discover tests
-
+        # Build and Push Docker Image to AWS ECR
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
