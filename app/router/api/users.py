@@ -406,11 +406,16 @@ async def start_chat(
     user: User = Depends(get_current_user)
 ):
     # Find quiz by id for the user's school
+
     quiz = db.query(quizzes.Quiz).filter(
         quizzes.Quiz.quiz_id == request.quiz_id,
         quizzes.Quiz.school_id == user.school_id
     ).first()
-    
+
+    user_name = user.first_name 
+    if user.last_name: 
+        user_name += user.last_name
+
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
     
@@ -443,11 +448,14 @@ async def start_chat(
         }
 
     # Create new session with context from topic summary
+
+    # add user_name to the new chat session db
     session = ChatSession(
         user_id=user.user_id,
         turn_count=0,
         context_text=topic.summary if topic.summary else "No context available"
     )
+
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -476,7 +484,8 @@ async def send_message(
     session.turn_count += 1
     db.commit()
 
-    lang_bahasa_rule = ""
+    #pick up username from session, and pass it. 
+    #user_name = session.user_name
 
     # language stage logic
     if session.turn_count <= 2:
@@ -497,9 +506,7 @@ async def send_message(
     else:
         # Default chat prompt
         base_system_prompt = "You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day."
-        system_message = f"{base_system_prompt} Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. You should guide the student to ask questions, if they are not, ask them questions. It is important for you to {lang_rule} {lang_bahasa_rule}"
-
-        print("system message", system_message)
+        system_message = f"{base_system_prompt}. The user's name is: {"John Doe"}. This is the material they are learning this week:\n{session.context_text}. Keep every answer strictly under 20 words. Ask them questions, keep them engaged. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. It is important for you to {lang_rule}"
 
     
     # Build the full system message
@@ -510,7 +517,7 @@ async def send_message(
         {"role": "system", "content": system_message},
     ]
     messages.extend({"role": r.role, "content": r.content} for r in history_rows)
-    messages.append({"role": "user", "content": request.message + lang_bahasa_rule})
+    messages.append({"role": "user", "content": request.message + lang_rule})
 
 
     completion = client.chat.completions.create(
