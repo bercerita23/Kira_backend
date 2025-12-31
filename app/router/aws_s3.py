@@ -48,7 +48,8 @@ class S3Service:
                 Bucket=self.bucket_name,
                 Key=s3_key,
                 Body=file_content,
-                ContentType=content_type  # Use the parameter instead of hardcoded
+                ContentType=content_type, 
+                CacheControl='public, max-age=1209600, immutable' # 14 days caching with CloudFront
             )
             
             # Return the S3 URL
