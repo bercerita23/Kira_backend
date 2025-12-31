@@ -35,7 +35,12 @@ from app.config import settings
 import fitz, io, base64
 from pydantic import BaseModel
 import re
+
+
 router = APIRouter()
+
+s3_service = S3Service()
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 # Add request schema for chat start
 class ChatStartRequest(BaseModel):
@@ -272,7 +277,7 @@ async def get_questions(quiz_id: str,
     """
     temp = db.query(quizzes.Quiz).filter(quizzes.Quiz.quiz_id == int(quiz_id)).first()
     if not temp: 
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found fuuuuuu")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
     
     # Fetch all questions in one query
     question_ids = [int(qid) for qid in temp.questions]
@@ -292,7 +297,8 @@ async def get_questions(quiz_id: str,
                 question_type=question.question_type,
                 points=question.points,
                 answer=question.answer,
-                image_url=signed_url
+                image_url=signed_url,
+                cloud_front_url=question.cloud_front_url
             ))
     return QuestionsOut(questions=res)
 
@@ -395,9 +401,6 @@ async def submit_quiz(
     return {
         "message": "Quiz result submitted."
     }
-
-s3_service = S3Service()
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 @router.post("/chat/start")
 async def start_chat(

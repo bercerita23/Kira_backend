@@ -16,6 +16,10 @@ from app.log import get_logger
 
 logger = get_logger("visual_generation", "INFO")
 
+
+CLOUD_FRONT_DOMAIN = "https://d2xd0f87o85q75.cloudfront.net"
+S3_PREFIX = "https://kira-school-content.s3.amazonaws.com"
+
 async def visual_generation():
     """
     Process one Topic in PROMPTS_GENERATED state:
@@ -180,7 +184,8 @@ async def visual_generation():
                     # Success!
                     generated_images.append({
                         "question_id": q_data["question_id"],
-                        "image_url": s3_url
+                        "image_url": s3_url,  
+                        "cloud_front_url": s3_url.replace(S3_PREFIX, CLOUD_FRONT_DOMAIN)
                     })
                     image_generated = True
                     logger.info(f"Successfully processed question {q_data['question_id']} on attempt {retry_count}")
@@ -200,6 +205,7 @@ async def visual_generation():
                     question = await db.get(Question, img_data["question_id"])
                     if question:
                         question.image_url = img_data["image_url"]
+                        question.cloud_front_url = img_data["cloud_font_url"]
                         db.add(question)
                 
                 # Update topic state
