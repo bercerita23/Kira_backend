@@ -62,6 +62,7 @@ class Question(BaseModel):
     points: int
     answer: str
     image_url: Optional[str] = None
+    cloud_front_url: Optional[str] = None
 
 class QuestionsOut(BaseModel): 
     questions: List[Question]
