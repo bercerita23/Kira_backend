@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["python", "-m", "app.worker"]
+CMD ["celery", "-A", "app.celery_app.celery_app", "worker", "--beat", "--loglevel=info"]
