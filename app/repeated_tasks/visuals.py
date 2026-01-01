@@ -205,7 +205,7 @@ async def visual_generation():
                     question = await db.get(Question, img_data["question_id"])
                     if question:
                         question.image_url = img_data["image_url"]
-                        question.cloud_front_url = img_data["cloud_font_url"]
+                        question.cloud_front_url = img_data["cloud_front_url"]
                         db.add(question)
                 
                 # Update topic state
