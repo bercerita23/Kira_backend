@@ -451,6 +451,7 @@ async def start_chat(
 
     # add user_name to the new chat session db
     session = ChatSession(
+        user_name=user_name,
         user_id=user.user_id,
         turn_count=0,
         context_text=topic.summary if topic.summary else "No context available"
@@ -485,7 +486,7 @@ async def send_message(
     db.commit()
 
     #pick up username from session, and pass it. 
-    #user_name = session.user_name
+    user_name = session.user_name
 
     # language stage logic
     if session.turn_count <= 2:
@@ -498,7 +499,6 @@ async def send_message(
         lang_rule = "Respond 30% in Bahasa Indonesia, 70% in English."
     else:
         lang_rule = "Respond fully in English."
-        lang_bahasa_rule = "Bisa jelaskan pakai bahasa inggris?"
 
     # Use school-specific chat prompt or fallback to default
     if school.kira_chat_prompt:
@@ -506,7 +506,7 @@ async def send_message(
     else:
         # Default chat prompt
         base_system_prompt = "You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day."
-        system_message = f"{base_system_prompt}. The user's name is: {"John Doe"}. This is the material they are learning this week:\n{session.context_text}. Keep every answer strictly under 20 words. Ask them questions, keep them engaged. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. It is important for you to {lang_rule}"
+        system_message = f"{base_system_prompt}. The user's name is: {"John Doe"} be personal. This is the material they are learning this week:\n{session.context_text}. Keep every answer strictly under 20 words. Ask them questions, keep them engaged. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. It is important for you to {lang_rule}"
 
     
     # Build the full system message
