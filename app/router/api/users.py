@@ -412,7 +412,9 @@ async def start_chat(
         quizzes.Quiz.school_id == user.school_id
     ).first()
 
-    user_name = user.first_name 
+    user_name = ""
+    if(user and user.first_name):
+        user_name = user.first_name 
     if user.last_name: 
         user_name += user.last_name
 

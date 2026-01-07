@@ -14,6 +14,7 @@ class ChatSession(Base):
     created_at = Column(DateTime, default=datetime.now)
     context_text = Column(Text, nullable=True)
     ended_at = Column(DateTime, nullable=True)
+    user_name = Column(Text, nullable=True)
 
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
     user = relationship("User", back_populates="chat_sessions")
