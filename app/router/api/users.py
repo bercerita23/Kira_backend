@@ -414,8 +414,8 @@ async def start_chat(
 
     user_name = ""
     if(user and user.first_name):
-        user_name = user.first_name 
-    if user.last_name: 
+        user_name = user.first_name + " "
+    if user and user.last_name: 
         user_name += user.last_name
 
     if not quiz:
