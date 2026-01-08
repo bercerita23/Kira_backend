@@ -14,6 +14,6 @@ __pycache__/
 .env.prod
 .env.local
 .pytest_cache/git pusll
-
+.pytest_cache/
 # python venv
 *venv/
