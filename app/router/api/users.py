@@ -491,7 +491,9 @@ async def send_message(
     db.commit()
 
     #pick up username from session, and pass it. 
-    user_name = session.user_name
+    user_name = ""
+    if session.user_name :
+        user_name = session.user_name
 
     # language stage logic
     if session.turn_count <= 2:
