@@ -10,6 +10,9 @@ from app.model.schools import School
 from app.router.aws_s3 import S3Service
 from app.config import settings
 import re, json
+from app.log import get_logger
+
+logger = get_logger("prompt_generation", "INFO")
 #20 question takes around 5co min to generate
 OPENAI_MODEL = "gpt-4o-mini"
 s3_service = S3Service()
@@ -92,7 +95,7 @@ async def prompt_generation():
         if remaining_questions <= 0:
             break
         
-        print(f"Attempt {attempt + 1}/{max_retries}: Requesting {remaining_questions} questions")
+        logger.info(f"Attempt {attempt + 1}/{max_retries}: Requesting {remaining_questions} questions")
         
         completion = client.chat.completions.create(
             model=OPENAI_MODEL,
@@ -132,21 +135,21 @@ Generate the questions from the PDF file provided."""
                 for q in questions:
                     questions_in_this_attempt.append(q)
             
-            print(f"Attempt {attempt + 1}: Received {len(questions_in_this_attempt)} questions")
+            logger.info(f"Attempt {attempt + 1}: Received {len(questions_in_this_attempt)} questions")
             
             for q in questions_in_this_attempt:
                 if len(all_generated_questions) >= max_questions:
                     break
                 all_generated_questions.append(q)
             
-            print(f"Total accumulated: {len(all_generated_questions)}/{max_questions}")
+            logger.info(f"Total accumulated: {len(all_generated_questions)}/{max_questions}")
             
             if len(all_generated_questions) == max_questions:
-                print(f"✓ Success! Generated exactly {max_questions} questions")
+                logger.info(f"✓ Success! Generated exactly {max_questions} questions")
                 break
                 
         except json.JSONDecodeError as e:
-            print(f"Attempt {attempt + 1}: JSON decode error - {str(e)}")
+            logger.warning(f"Attempt {attempt + 1}: JSON decode error - {str(e)}")
             continue
 
     # Generate summary
@@ -200,4 +203,4 @@ Generate the questions from the PDF file provided."""
         await db.commit()
     # CONNECTION RELEASED HERE
     
-    print(f"✓ Successfully saved {max_questions} questions to database")
+    logger.info(f"✓ Successfully saved {max_questions} questions to database")

@@ -4,6 +4,9 @@ from app.database.db import get_async_db
 from app.router.aws_ses import send_ready_notification
 from app.model.topics import Topic
 from app.model.users import User
+from app.log import get_logger
+
+logger = get_logger("ready_for_review", "INFO")
 
 async def ready_for_review():
     """
@@ -34,7 +37,7 @@ async def ready_for_review():
             )
             admin_emails = [row[0] for row in result.all()]
             for email in admin_emails:
-                print(f"Notification sent to {email}")
+                logger.info(f"Notification sent to {email}")
                 send_ready_notification(email)
 
             # Step 4: commit changes
@@ -42,6 +45,6 @@ async def ready_for_review():
             return  # Task completed successfully
 
         except Exception as e:
-            print(f"Error in ready_for_review task: {e}")
+            logger.error(f"Error in ready_for_review task: {e}")
             await db.rollback()
             raise  # Let the outer loop handle the error

@@ -13,4 +13,19 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        "run-prompt-generation-every-10-seconds": {
+            "task": "app.tasks.run_prompt_generation",
+            "schedule": 10.0,
+        },
+        "run-visual-generation-every-10-seconds": {
+            "task": "app.tasks.run_visual_generation",
+            "schedule": 10.0,
+        },
+        "run-ready-for-review-every-10-seconds": {
+            "task": "app.tasks.run_ready_for_review",
+            "schedule": 10.0,
+        },
+    },
+    worker_prefetch_multiplier=1,
 )
