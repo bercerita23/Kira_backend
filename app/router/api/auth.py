@@ -49,13 +49,13 @@ async def register(request: AdminCreate, db: Session = Depends(get_db)):
     """Register a new admin (delegates to register service)."""
     return register_admin_logic(db=db, request=request)
 
-# Cleanup of expired codes is now handled in the password service if needed.
 
 @router.post("/request-reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def request_reset_password(request_body: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Request reset password (delegates to password service)."""
     return request_reset_password_logic(db=db, request_body=request_body)
         
+
 @router.post("/reset-pw", response_model=dict, status_code=status.HTTP_200_OK)
 async def reset_admin_password(request: PasswordResetWithEmail, db: Session = Depends(get_db)):
     """Reset admin password (delegates to password service)."""
@@ -66,6 +66,7 @@ async def reset_admin_password(request: PasswordResetWithEmail, db: Session = De
 async def get_all_school(db: Session = Depends(get_db)):
     """Get all active schools (delegates to register service)."""
     return get_all_school_logic(db=db)
+
 
 @router.post("/resend-verification", response_model=dict, status_code=status.HTTP_200_OK)
 async def resend_verification_code(request: ResendVerificationEmail, db: Session = Depends(get_db)):
