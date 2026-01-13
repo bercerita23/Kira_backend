@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from app.model import users, schools, streaks, badges, user_badges, points, quizzes, questions, attempts, temp_admins, verification_codes, topics, reference_counts, chats 
+from app.model import users, schools, streaks, badges, user_badges, points, quizzes, questions, attempts, temp_admins, verification_codes, topics, reference_counts, chats, analytics 
 from app.repeated_tasks.ready import *
 from app.repeated_tasks.question_and_prompt import * 
 from app.repeated_tasks.visuals import *
