@@ -12,7 +12,7 @@ class Analytics(Base):
     
     # attributes
     engagement_time_ms = Column(Integer, default=0, nullable=False) 
-    created_at = Column(DateTime, default=datetime.now)
+    last_updated = Column(DateTime, default=datetime.now)
     # relationship
     user = relationship("User", back_populates="analytics") 
 
