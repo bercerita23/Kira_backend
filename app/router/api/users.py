@@ -35,7 +35,12 @@ from app.config import settings
 import fitz, io, base64
 from pydantic import BaseModel
 import re
+
+
 router = APIRouter()
+
+s3_service = S3Service()
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 # Add request schema for chat start
 class ChatStartRequest(BaseModel):
@@ -272,7 +277,7 @@ async def get_questions(quiz_id: str,
     """
     temp = db.query(quizzes.Quiz).filter(quizzes.Quiz.quiz_id == int(quiz_id)).first()
     if not temp: 
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found fuuuuuu")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
     
     # Fetch all questions in one query
     question_ids = [int(qid) for qid in temp.questions]
@@ -292,7 +297,8 @@ async def get_questions(quiz_id: str,
                 question_type=question.question_type,
                 points=question.points,
                 answer=question.answer,
-                image_url=signed_url
+                image_url=signed_url,
+                cloud_front_url=question.cloud_front_url
             ))
     return QuestionsOut(questions=res)
 
@@ -396,9 +402,6 @@ async def submit_quiz(
         "message": "Quiz result submitted."
     }
 
-s3_service = S3Service()
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
-
 @router.post("/chat/start")
 async def start_chat(
     request: ChatStartRequest,
@@ -412,8 +415,10 @@ async def start_chat(
         quizzes.Quiz.school_id == user.school_id
     ).first()
 
-    user_name = user.first_name 
-    if user.last_name: 
+    user_name = ""
+    if(user and user.first_name):
+        user_name = user.first_name + " "
+    if user and user.last_name: 
         user_name += user.last_name
 
     if not quiz:
@@ -486,7 +491,9 @@ async def send_message(
     db.commit()
 
     #pick up username from session, and pass it. 
-    user_name = session.user_name
+    user_name = ""
+    if session.user_name :
+        user_name = session.user_name
 
     # language stage logic
     if session.turn_count <= 2:
@@ -502,11 +509,11 @@ async def send_message(
 
     # Use school-specific chat prompt or fallback to default
     if school.kira_chat_prompt:
-        system_message = school.kira_chat_prompt + f"Keep your answers very short (1–2 sentences). Use this context:\n{session.context_text} as this is what the class is learning for the week. Keep every answer strictly under 20 words. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} turn you have talked to the client,  Keep conversations simple, and under 20 words. If its your first time, greet them. You should guide the student to ask questions, if they are not, ask them questions. Keep them engaged"
+        system_message = school.kira_chat_prompt + f"{base_system_prompt}. The user's name is: {user_name} be personal and talk to them by their name. This is the material they are learning this week:\n{session.context_text}. Keep every answer strictly under 20 words. Ask them questions, keep them engaged. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. It is important for you to {lang_rule}"
     else:
         # Default chat prompt
         base_system_prompt = "You are Kira, an english tutor for indonesian students. you can also be refered to as Kira Monkey and you also respond if they are trying to greet you or asking hows is your day."
-        system_message = f"{base_system_prompt}. The user's name is: {"John Doe"} be personal. This is the material they are learning this week:\n{session.context_text}. Keep every answer strictly under 20 words. Ask them questions, keep them engaged. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. It is important for you to {lang_rule}"
+        system_message = f"{base_system_prompt}. The user's name is: {user_name} be personal and talk to them by their name. This is the material they are learning this week:\n{session.context_text}. Keep every answer strictly under 20 words. Ask them questions, keep them engaged. if user response is not related to the context reply kindly and warmly, and guide them to the topic being discussed. it is currently the {session.turn_count} time you have talked to the child, as the session progresses, begin using some english, with the goal at the 6th turn, the conversation MUST BE FULLY in english. If the user respond in english, reply in english as well. Keep conversations simple, and under 20 words. If its your first time, greet them in indonesian. It is important for you to {lang_rule}"
 
     
     # Build the full system message

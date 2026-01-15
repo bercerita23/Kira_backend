@@ -1,7 +1,6 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, DateTime, Integer, ARRAY
+from sqlalchemy import Column, String, ForeignKey, Integer, ARRAY
 from sqlalchemy.orm import relationship
 from app.database.base_class import Base
-from datetime import datetime
 
 
 
@@ -20,6 +19,7 @@ class Question(Base):
     answer = Column(String(255), nullable=False)
     image_prompt = Column(String(512), nullable=True)
     image_url = Column(String(512), nullable=True)
+    cloud_front_url = Column(String(512), nullable=True)
 
     topic_id = Column(Integer, ForeignKey("topics.topic_id"), nullable=True)
     

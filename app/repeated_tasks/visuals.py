@@ -12,6 +12,13 @@ from app.model.schools import School
 from google import genai
 from google.genai import types
 from app.config import settings
+from app.log import get_logger
+
+logger = get_logger("visual_generation", "INFO")
+
+
+CLOUD_FRONT_DOMAIN = "https://d2xd0f87o85q75.cloudfront.net"
+S3_PREFIX = "https://kira-school-content.s3.amazonaws.com"
 
 async def visual_generation():
     """
@@ -44,7 +51,7 @@ async def visual_generation():
             school_id = topic.school_id
             week_number = topic.week_number
             
-            print(f"Processing topic {topic_id}: '{topic_name}' (School: {school_id})")
+            logger.info(f"Processing topic {topic_id}: '{topic_name}' (School: {school_id})")
             
             # Get school information
             school_result = await db.execute(
@@ -95,7 +102,7 @@ async def visual_generation():
                     gemini_role_prompt = f.read()
             except FileNotFoundError:
                 gemini_role_prompt = "Create an educational image based on the following prompt:"
-                print("imagen_prompt.txt not found, using default prompt")
+                logger.warning("imagen_prompt.txt not found, using default prompt")
         
         # Step 2: Generate images (expensive operation, no DB connection)
         generated_images = []
@@ -115,7 +122,7 @@ async def visual_generation():
                     else:
                         full_prompt = f"{gemini_role_prompt}\n\n{q_data['image_prompt']}"
                     
-                    print(f"Generating image {i}/{len(questions_data)} for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
+                    logger.info(f"Generating image {i}/{len(questions_data)} for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
                     
                     # Generate image with Gemini
                     response = client.models.generate_content(
@@ -133,7 +140,7 @@ async def visual_generation():
                                 break
                     
                     if not image_obj:
-                        print(f"No image generated for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
+                        logger.warning(f"No image generated for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
                         if retry_count < max_retries:
                             await asyncio.sleep(2)
                             continue
@@ -148,7 +155,7 @@ async def visual_generation():
                     
                     # Validate image bytes
                     if not png_bytes or len(png_bytes) == 0:
-                        print(f"Generated image is empty for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
+                        logger.warning(f"Generated image is empty for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
                         if retry_count < max_retries:
                             await asyncio.sleep(2)
                             continue
@@ -167,7 +174,7 @@ async def visual_generation():
                     )
                     
                     if not s3_url:
-                        print(f"S3 upload failed for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
+                        logger.error(f"S3 upload failed for question {q_data['question_id']} (attempt {retry_count}/{max_retries})")
                         if retry_count < max_retries:
                             await asyncio.sleep(2)
                             continue
@@ -177,13 +184,14 @@ async def visual_generation():
                     # Success!
                     generated_images.append({
                         "question_id": q_data["question_id"],
-                        "image_url": s3_url
+                        "image_url": s3_url,  
+                        "cloud_front_url": s3_url.replace(S3_PREFIX, CLOUD_FRONT_DOMAIN)
                     })
                     image_generated = True
-                    print(f"Successfully processed question {q_data['question_id']} on attempt {retry_count}")
+                    logger.info(f"Successfully processed question {q_data['question_id']} on attempt {retry_count}")
                     
                 except Exception as q_err:
-                    print(f"Error processing question {q_data['question_id']} (attempt {retry_count}/{max_retries}): {q_err}")
+                    logger.error(f"Error processing question {q_data['question_id']} (attempt {retry_count}/{max_retries}): {q_err}")
                     if retry_count < max_retries:
                         await asyncio.sleep(2)
                     else:
@@ -197,6 +205,7 @@ async def visual_generation():
                     question = await db.get(Question, img_data["question_id"])
                     if question:
                         question.image_url = img_data["image_url"]
+                        question.cloud_front_url = img_data["cloud_front_url"]
                         db.add(question)
                 
                 # Update topic state
@@ -207,10 +216,10 @@ async def visual_generation():
                 await db.commit()
             # CONNECTION RELEASED HERE
             
-            print(f"Topic {topic_id} completed - marked as VISUALS_GENERATED with {len(generated_images)} images")
+            logger.info(f"Topic {topic_id} completed - marked as VISUALS_GENERATED with {len(generated_images)} images")
         else:
-            print(f"No images were successfully generated for topic {topic_id}")
+            logger.warning(f"No images were successfully generated for topic {topic_id}")
             
     except Exception as e:
-        print(f"Error in visual_generation task: {e}")
+        logger.error(f"Error in visual_generation task: {e}")
         raise

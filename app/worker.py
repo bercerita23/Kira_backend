@@ -4,7 +4,9 @@ from app.repeated_tasks.visuals import visual_generation
 from app.repeated_tasks.ready import ready_for_review
 from app.config import settings
 from typing import Callable, Dict
+from app.log import get_logger
 
+logger = get_logger("worker", "INFO")
 # Locks to prevent concurrent processing of same task
 task_locks: Dict[str, asyncio.Lock] = {
     "prompt_generation": asyncio.Lock(),
@@ -50,13 +52,13 @@ async def run_task(name: str, func: Callable, interval: int = 30):
 
 async def worker_main():
     """Run generation tasks concurrently with the same logic as before"""
-    print(f"🚀 Worker starting in {settings.ENV} mode...", flush=True)
-    print("=" * 50, flush=True)
-    print("Running tasks concurrently:", flush=True)
-    print("  - PromptGen (every 10s)", flush=True)
-    print("  - VisualGen (every 10s)", flush=True)
-    print("  - ReadyCheck (every 10s)", flush=True)
-    print("=" * 50, flush=True)
+    logger.info(f"Worker starting in {settings.ENV} mode...")
+    logger.info("=" * 50)
+    logger.info("Running tasks concurrently:")
+    logger.info("  - PromptGen (every 10s)")
+    logger.info("  - VisualGen (every 10s)")
+    logger.info("  - ReadyCheck (every 10s)")
+    logger.info("=" * 50)
     
     await asyncio.gather(
         run_task("prompt_generation", prompt_generation, 10),
@@ -67,10 +69,11 @@ async def worker_main():
 # Remove the if __name__ check
 # Just run it directly when module is executed
 try:
-    print("WORKER BOOTING", flush=True)
+    logger.info("WORKER BOOTING")
     asyncio.run(worker_main())
 except Exception as e:
     import traceback
-    print("WORKER CRASHED:", flush=True)
+    logger.critical("WORKER CRASHED:")
+    logger.critical(traceback.format_exc())
     traceback.print_exc()
     raise
