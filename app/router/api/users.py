@@ -11,6 +11,7 @@ from app.model.badges import Badge
 from app.model.points import Points
 from app.model.streaks import Streak
 from app.model import quizzes
+from app.model import analytics
 from app.model import questions
 from app.model.attempts import *
 from app.model.user_achievements import *
