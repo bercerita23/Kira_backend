@@ -1,63 +1,87 @@
 
 from app.celery_app import celery_app
-from app.repeated_tasks.question_and_prompt import prompt_generation
-from app.repeated_tasks.visuals import visual_generation
-from app.repeated_tasks.ready import ready_for_review
-import os
-import redis
-import time
+# import asyncio
+# import time
+# from app.repeated_tasks.question_and_prompt import prompt_generation
+# from app.repeated_tasks.visuals import visual_generation
+# from app.repeated_tasks.ready import ready_for_review
+from google.cloud import bigquery
+from sqlalchemy.dialects.postgresql import insert
+from app.model.analytics import Analytics
+from app.database.db import SessionLocal
+from datetime import datetime
 
 
-def get_redis_client():
-    redis_url = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    # Remove scheme for redis-py if needed
-    if redis_url.startswith("redis://"):
-        redis_url = redis_url.replace("redis://", "", 1)
-    # redis.from_url expects the full URL
-    return redis.from_url(os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0"))
+# @celery_app.task(bind=True)
+# def worker_loop(self):
+#     print("[Celery] Worker loop started.", flush=True)
+#     while True:
+#         try:
+#             print("[Celery] Running prompt_generation...", flush=True)
+#             asyncio.run(prompt_generation())
+#         except Exception as e:
+#             print(f"[Celery] Error in prompt_generation: {e}", flush=True)
+#         try:
+#             print("[Celery] Running visual_generation...", flush=True)
+#             asyncio.run(visual_generation())
+#         except Exception as e:
+#             print(f"[Celery] Error in visual_generation: {e}", flush=True)
+#         try:
+#             print("[Celery] Running ready_for_review...", flush=True)
+#             asyncio.run(ready_for_review())
+#         except Exception as e:
+#             print(f"[Celery] Error in ready_for_review: {e}", flush=True)
+#         time.sleep(15)
 
-def acquire_lock(r, lock_name, expire=600):
-    # Try to acquire lock, expire in 10 min (safety)
-    return r.set(lock_name, "1", nx=True, ex=expire)
+        
 
-def release_lock(r, lock_name):
-    r.delete(lock_name)
+@celery_app.task(bind=True)
+def bigquery_nightly_upsert(self):
 
-@celery_app.task
-def run_prompt_generation():
-    import asyncio
-    r = get_redis_client()
-    lock_name = "lock:run_prompt_generation"
-    if not acquire_lock(r, lock_name, expire=600):
-        # Lock is held, skip this run
-        return
+    client = bigquery.Client()
+    query = """
+    SELECT
+        user_id,
+        user_ltv.engagement_time_millis AS total_engagement_time_ms,
+        last_updated_date
+    FROM `analytics_516824409.users_*`
+    WHERE _TABLE_SUFFIX = FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
+    """
+
+    job = client.query(query)
+    rows = job.result()
+
+    db = SessionLocal()
     try:
-        asyncio.run(prompt_generation())
+        for row in rows:
+            last_updated = (
+                datetime.strptime(row.last_updated_date, "%Y%m%d")
+                if row.last_updated_date
+                else None
+            )
+            stmt = (
+                insert(Analytics)
+                .values(
+                    user_id=row.user_id,
+                    engagement_time_ms=row.total_engagement_time_ms,
+                    last_updated=last_updated,
+                )
+                .on_conflict_do_update(
+                    index_elements=["user_id"],
+                    set_={
+                        "engagement_time_ms": row.total_engagement_time_ms,
+                        "last_updated": last_updated,
+                    },
+                )
+            )
+            db.execute(stmt)
+
+        db.commit()
+        print("Rows successfully inserted.")
+
+    except Exception:
+        db.rollback()
+        raise
+
     finally:
-        release_lock(r, lock_name)
-
-
-@celery_app.task
-def run_visual_generation():
-    import asyncio
-    r = get_redis_client()
-    lock_name = "lock:run_visual_generation"
-    if not acquire_lock(r, lock_name, expire=600):
-        return
-    try:
-        asyncio.run(visual_generation())
-    finally:
-        release_lock(r, lock_name)
-
-
-@celery_app.task
-def run_ready_for_review():
-    import asyncio
-    r = get_redis_client()
-    lock_name = "lock:run_ready_for_review"
-    if not acquire_lock(r, lock_name, expire=600):
-        return
-    try:
-        asyncio.run(ready_for_review())
-    finally:
-        release_lock(r, lock_name)
+        db.close()
