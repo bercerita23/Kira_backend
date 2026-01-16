@@ -50,3 +50,13 @@ class LoginRequestAdmin(BaseModel):
     email: str
     password: str
     school_id: Optional[str] = None
+
+
+class PasswordResetWithEmail(BaseModel):
+    email: str
+    code: str
+    new_password: str
+
+
+class ResendVerificationEmail(BaseModel):
+    email: str
