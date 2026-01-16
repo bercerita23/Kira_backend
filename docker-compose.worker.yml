@@ -34,7 +34,17 @@ services:
     image: 947119549699.dkr.ecr.us-east-2.amazonaws.com/kira/worker-docker-img-repo:${IMAGE_TAG:-latest}
     platform: linux/amd64
     restart: always
-    command: celery -A app.celery_app worker --pool=solo --loglevel=info --beat
+    command:
+      - celery
+      - -A
+      - app.celery_app
+      - worker
+      - --pool=solo
+      - --loglevel=info
+      - --beat
+      - --without-gossip
+      - --without-mingle
+      - --without-heartbeat
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
       - API_VERSION=${API_VERSION}
