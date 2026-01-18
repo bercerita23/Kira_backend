@@ -38,7 +38,7 @@ from datetime import datetime
 @celery_app.task(bind=True)
 def bigquery_nightly_upsert(self):
 
-    client = bigquery.Client()
+    client = bigquery.Client(project="analytics-482304")
     query = """
     SELECT
         user_id,
