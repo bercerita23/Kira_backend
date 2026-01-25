@@ -45,8 +45,11 @@ def bigquery_nightly_upsert(self):
         user_ltv.engagement_time_millis AS total_engagement_time_ms,
         last_updated_date
     FROM `analytics_516824409.users_*`
-    WHERE _TABLE_SUFFIX = FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
-    """
+    WHERE _TABLE_SUFFIX = (
+    SELECT MAX(_TABLE_SUFFIX)
+    FROM `analytics_516824409.users_*`
+    WHERE _TABLE_SUFFIX < FORMAT_DATE('%Y%m%d', CURRENT_DATE())
+    )"""
 
     job = client.query(query)
     rows = job.result()
