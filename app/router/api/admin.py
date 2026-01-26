@@ -9,6 +9,7 @@ from app.schema.user_schema import ApproveQuestions
 from app.router.auth_util import *
 from app.model.topics import Topic 
 from app.model.questions import Question as QuestionModel
+from app.model.analytics import Analytics
 from app.model.quizzes import Quiz
 from app.model.chats import ChatSession
 from app.model.attempts import Attempt
@@ -108,9 +109,9 @@ async def get_detail_student_info(
         {
             "points": a.pass_count,  # or however you award points
             "date": a.end_at,
-            "description": f"Quiz {a.quiz.name} Completed"
+            "description": f"Quiz {a.quiz.name} Completed" 
         }
-        for a in attempts if a.pass_count
+        for a in attempts if a.pass_count and a.quiz
     ]
 
     # 7. Achievements
@@ -876,43 +877,6 @@ async def replace_question_image(
 # 
 #     return {"content_url": topic_url[0]}
 
-# total time spent on quizzes and chat sessions per day for the admin's school
-@router.get("/time-spent", status_code=status.HTTP_200_OK)
-async def get_total_time(
-    db: Session = Depends(get_db),
-    admin: User = Depends(get_current_admin)):
-    """Get time spent in quizzes/chat sessions for the admin's school."""
-
-    attempts_subq = (
-    select(
-        cast(Attempt.start_at, Date).label("just_date"),
-        (func.extract("epoch", Attempt.end_at - Attempt.start_at)).label("duration_seconds")
-    )
-    .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
-    .where(
-        Quiz.school_id == admin.school_id,  
-        Attempt.start_at.isnot(None),
-        Attempt.end_at.isnot(None)
-    ))
-
-    chats_subq = (
-        select(
-            cast(ChatSession.created_at, Date).label("just_date"),
-            (func.extract("epoch", ChatSession.ended_at - ChatSession.created_at)).label("duration_seconds")
-        ).join(User, User.user_id == ChatSession.user_id)
-        .where(User.school_id == admin.school_id, ChatSession.created_at.isnot(None), ChatSession.ended_at.isnot(None))
-    )
-
-    combined = union_all(attempts_subq, chats_subq)
-
-    query = select(
-        func.sum(combined.selected_columns.duration_seconds).label("total_avg_seconds")
-    )
-
-    results = db.execute(query).scalar()
-    return {"total_time_seconds": results or 0}
-
-
 @router.get("/quizzes", status_code=status.HTTP_200_OK)
 async def get_total_time(
     db: Session = Depends(get_db),
@@ -947,7 +911,6 @@ async def get_total_time(
 
     results = db.execute(query).scalar()
     return {"total_time_seconds": results or 0}
-
 
 @router.get("/mean-scores", status_code=status.HTTP_200_OK)
 async def get_mean_scores(
@@ -1005,7 +968,6 @@ async def get_mean_scores(
         }
         for row in results
     ]
-
 
 @router.get("/quiz-stats", status_code=status.HTTP_200_OK)
 async def get_quiz_statistics(
@@ -1077,57 +1039,39 @@ async def get_quiz_statistics(
     ]
 
 @router.get("/time-stats", status_code=status.HTTP_200_OK)
-async def get_average_time_per_student_per_month(
+async def get_time_stats(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin)
 ):
     """
-    Compute one overall number:
-    average time (in minutes) per student per month 
-    combining quizzes and Kira chat sessions for the admin's school.
+    Computes:
+    - total_minutes: total engagement time (minutes) across all students
+    - avg_minutes_per_student: average engagement time per student
     """
 
-    attempts_subq = (
-        select(
-            Attempt.user_id.label("user_id"),
-            func.date_trunc("month", Attempt.start_at).label("month_start"),
-            (func.extract("epoch", Attempt.end_at - Attempt.start_at) / 60.0).label("duration_minutes")
+    result = (
+        db.query(
+            func.sum(Analytics.engagement_time_ms).label("total_ms"),
+            func.count(Analytics.user_id).label("student_count"),
         )
-        .join(Quiz, Quiz.quiz_id == Attempt.quiz_id)
-        .where(
-            Quiz.school_id == admin.school_id,
-            Attempt.start_at.isnot(None),
-            Attempt.end_at.isnot(None)
-        )
+        .join(User, User.user_id == Analytics.user_id)
+        .filter(User.school_id == admin.school_id)
+        .one()
     )
 
-    chats_subq = (
-        select(
-            ChatSession.user_id.label("user_id"),
-            func.date_trunc("month", ChatSession.created_at).label("month_start"),
-            (func.extract("epoch", ChatSession.ended_at - ChatSession.created_at) / 60.0).label("duration_minutes")
-        )
-        .join(User, User.user_id == ChatSession.user_id)
-        .where(
-            User.school_id == admin.school_id,
-            ChatSession.created_at.isnot(None),
-            ChatSession.ended_at.isnot(None)
-        )
-    )
+    total_ms, student_count = result
 
-    combined = union_all(attempts_subq, chats_subq).subquery()
-    total_minutes = db.execute(select(func.sum(combined.c.duration_minutes))).scalar() or 0
+    if not total_ms or not student_count:
+        return {
+            "total_minutes": 0.0,
+            "avg_minutes_per_student": 0.0,
+        }
 
-    student_count = db.execute(select(func.count(func.distinct(combined.c.user_id)))).scalar() or 0
-    month_count = db.execute(select(func.count(func.distinct(combined.c.month_start)))).scalar() or 0
-    avg_per_student_per_month = (
-        total_minutes / (student_count * month_count)
-        if student_count > 0 and month_count > 0
-        else 0.0
-    )
+    total_minutes = total_ms / 1000 / 60
+    avg_minutes_per_student = total_minutes / student_count
 
     return {
-        "avg_student_per_month": round(avg_per_student_per_month, 2),
         "total_minutes": round(total_minutes, 2),
+        "avg_minutes_per_student": round(avg_minutes_per_student, 2),
     }
 
