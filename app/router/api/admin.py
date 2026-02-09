@@ -11,7 +11,7 @@ from app.model.topics import Topic
 from app.model.questions import Question as QuestionModel
 from app.model.analytics import Analytics
 from app.model.quizzes import Quiz
-from app.model.chats import ChatSession
+from app.model.chats import ChatSession, ChatMessage
 from app.model.attempts import Attempt
 from app.model.users import User
 from app.model.reference_counts import *
@@ -126,6 +126,25 @@ async def get_detail_student_info(
     ]
     achs = sorted(achs, key=lambda x: x["completed_at"], reverse=True)
 
+    # 8. Chat Summary (for charts)
+    chat_sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.user_id == user.user_id)
+        .order_by(ChatSession.created_at.asc())
+        .all()
+    )
+
+    chat_summary = [
+            {
+                "session_id": s.id,
+                "started_at": s.created_at,
+                "ended_at": s.ended_at,
+                "duration_minutes": s.duration_minutes(),
+                "turn_count": s.turn_count,
+            }
+        for s in chat_sessions
+    ]
+
 
     # 8. Assemble response
     return {
@@ -137,6 +156,7 @@ async def get_detail_student_info(
         "badges": badges,
         "learning_streak": streak,
         "achievements": achs, 
+        "chat_summary": chat_summary,
         "student_info": {
             "first_name": user.first_name, 
             "last_name": user.last_name, 
@@ -1075,3 +1095,58 @@ async def get_time_stats(
         "avg_minutes_per_student": round(avg_minutes_per_student, 2),
     }
 
+
+@router.get(
+    "/chat-history/{session_id}",
+    status_code=status.HTTP_200_OK
+)
+async def get_chat_session_history(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """
+    Returns full chat history for a specific chat session.
+    Admin-only, scoped to admin's school.
+    """
+
+    session = (
+        db.query(ChatSession)
+        .join(User, User.user_id == ChatSession.user_id)
+        .filter(
+            ChatSession.id == session_id,
+            User.school_id == admin.school_id
+        )
+        .first()
+    )
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found"
+        )
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+    return {
+        "session_id": session.id,
+        "user_id": session.user_id,
+        "user_name": session.user_name,
+        "started_at": session.created_at,
+        "ended_at": session.ended_at,
+        "turn_count": session.turn_count,
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at,
+            }
+            for m in messages
+        ],
+    }
