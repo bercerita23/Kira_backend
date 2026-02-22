@@ -18,6 +18,7 @@ from datetime import datetime
 from app.schema.super_admin_schema import NewSchool, UpdateSchool
 from app.model.schools import SchoolStatus
 import random
+from app.model.chats import ChatSession, ChatMessage
 
 router = APIRouter()
 
@@ -153,13 +154,35 @@ async def reactivate_admin(request: AdminActivation,
     }
 
 @router.get("/")
-def get_all_users(db: Session = Depends(get_db), 
-                  super_admin: User = Depends(get_current_super_admin)):
+def get_all_users(
+    db: Session = Depends(get_db),
+    super_admin: User = Depends(get_current_super_admin)
+):
     users = db.query(User).filter(User.deactivated.is_(False)).all()
-    
-    # Enrich users with school name
+
     enriched_users = []
+
     for user in users:
+        # Fetch all chat session IDs for this user
+        chat_sessions = (
+            db.query(ChatSession)
+            .filter(ChatSession.user_id == user.user_id)
+            .order_by(ChatSession.created_at.desc())
+            .all()
+        )
+
+        chat_sessions_data = [
+            {
+                "session_id": s.id,
+                "started_at": s.created_at,
+                "ended_at": s.ended_at,
+                "turn_count": s.turn_count,
+                "duration_minutes": s.duration_minutes(),
+            }
+            for s in chat_sessions
+        ]
+
+
         user_dict = {
             "user_id": user.user_id,
             "school_id": user.school_id,
@@ -174,11 +197,14 @@ def get_all_users(db: Session = Depends(get_db),
             "username": user.username,
             "deactivated": user.deactivated,
             "grade": user.grade,
-            "school_name": user.school.name if user.school else None
+            "school_name": user.school.name if user.school else None,
+            "chat_sessions_data": chat_sessions_data   
         }
+
         enriched_users.append(user_dict)
-    
+
     return {"Hello_Form:": enriched_users}
+
 
 @router.get("/schools_with_admins", response_model=SchoolsResponse, status_code=status.HTTP_200_OK)
 async def get_schools_with_admins(
@@ -494,3 +520,57 @@ def get_default_prompts(super_admin: User = Depends(get_current_super_admin)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error reading default prompts: {str(e)}"
         )
+    
+
+@router.get(
+    "/chat-history/{session_id}",
+    status_code=status.HTTP_200_OK
+)
+async def get_chat_session_history(
+    session_id: int,
+    db: Session = Depends(get_db),
+    super_admin: User = Depends(get_current_super_admin),
+):
+    """
+    Returns full chat history for a specific chat session.
+    Super-admin only (no school restriction).
+    """
+
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.id == session_id)
+        .first()
+    )
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found"
+        )
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+    return {
+        "session_id": session.id,
+        "user_id": session.user_id,
+        "user_name": session.user_name,
+        "school_id": session.user.school_id if session.user else None,
+        "started_at": session.created_at,
+        "ended_at": session.ended_at,
+        "turn_count": session.turn_count,
+        "duration_minutes": session.duration_minutes(),
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at,
+            }
+            for m in messages
+        ],
+    }
