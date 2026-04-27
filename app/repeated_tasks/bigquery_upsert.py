@@ -1,43 +1,13 @@
-
-from app.celery_app import celery_app
-# import asyncio
-# import time
-# from app.repeated_tasks.question_and_prompt import prompt_generation
-# from app.repeated_tasks.visuals import visual_generation
-# from app.repeated_tasks.ready import ready_for_review
-from google.cloud import bigquery
-from sqlalchemy.dialects.postgresql import insert
-from app.model.analytics import Analytics
-from app.database.db import SessionLocal
 from datetime import datetime
 
+from google.cloud import bigquery
+from sqlalchemy.dialects.postgresql import insert
 
-# @celery_app.task(bind=True)
-# def worker_loop(self):
-#     print("[Celery] Worker loop started.", flush=True)
-#     while True:
-#         try:
-#             print("[Celery] Running prompt_generation...", flush=True)
-#             asyncio.run(prompt_generation())
-#         except Exception as e:
-#             print(f"[Celery] Error in prompt_generation: {e}", flush=True)
-#         try:
-#             print("[Celery] Running visual_generation...", flush=True)
-#             asyncio.run(visual_generation())
-#         except Exception as e:
-#             print(f"[Celery] Error in visual_generation: {e}", flush=True)
-#         try:
-#             print("[Celery] Running ready_for_review...", flush=True)
-#             asyncio.run(ready_for_review())
-#         except Exception as e:
-#             print(f"[Celery] Error in ready_for_review: {e}", flush=True)
-#         time.sleep(15)
+from app.database.db import SessionLocal
+from app.model.analytics import Analytics
 
-        
 
-@celery_app.task(bind=True)
-def bigquery_nightly_upsert(self):
-
+def bigquery_nightly_upsert():
     client = bigquery.Client(project="analytics-482304")
     query = """
     SELECT
