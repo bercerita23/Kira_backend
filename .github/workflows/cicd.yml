@@ -30,7 +30,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests
+          pytest tests
         # or use:
         # python -m unittest discover tests
 
@@ -104,7 +104,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests
+          pytest tests
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
